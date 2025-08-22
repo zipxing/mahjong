@@ -1,30 +1,59 @@
+/**
+ * 麻将连连看游戏主类
+ * 
+ * 游戏规则：
+ * 1. 通过点击或拖动来选择和移动麻将棋子
+ * 2. 相同类型的麻将棋子可以消除，消除条件：
+ *    - 相邻的相同棋子可以直接消除
+ *    - 同行或同列且中间无阻挡的相同棋子可以消除
+ * 3. 拖动棋子移动后，必须有消除机会，否则会自动回退
+ * 4. 目标是消除所有棋子
+ */
 class MahjongGame {
     constructor() {
-        this.boardSize = 8;
-        this.tileTypes = ['🀄', '🀅', '🀆', '🀇', '🀈', '🀉', '🀊', '🀋']; // 8种麻将子
-        this.board = [];
-        this.score = 0;
-        this.selectedTile = null;
-        this.isDragging = false;
-        this.dragStartPos = null;
-        this.dragEndPos = null;
-        this.dragTiles = [];
-        this.moveHistory = []; // 移动历史记录
-        this.eliminationHistory = []; // 消除历史记录
-        this.hintHighlighted = false;
+        // 游戏配置
+        this.boardSize = 8;                    // 棋盘大小：8x8
+        this.tileTypes = ['🀄', '🀅', '🀆', '🀇', '🀈', '🀉', '🀊', '🀋']; // 8种不同的麻将棋子类型
         
+        // 游戏状态
+        this.board = [];                       // 棋盘数组，存储所有棋子
+        this.score = 0;                        // 当前得分
+        this.selectedTile = null;              // 当前选中的棋子位置 {row, col}
+        
+        // 拖拽相关状态
+        this.isDragging = false;               // 是否正在拖拽
+        this.dragStartPos = null;              // 拖拽开始位置 {row, col, x, y}
+        this.dragEndPos = null;                // 拖拽结束位置 {x, y}
+        this.dragTiles = [];                   // 拖拽过程中涉及的棋子列表
+        
+        // 历史记录（用于撤销功能）
+        this.moveHistory = [];                 // 移动历史记录
+        this.eliminationHistory = [];          // 消除历史记录
+        
+        // UI状态
+        this.hintHighlighted = false;          // 是否正在显示提示高亮
+        
+        // 初始化游戏
         this.init();
     }
 
+    /**
+     * 初始化游戏
+     * 按顺序执行所有初始化步骤
+     */
     init() {
-        this.createBoard();
-        this.generatePairs();
-        this.shuffleBoard();
-        this.renderBoard();
-        this.attachEventListeners();
-        this.updateUI();
+        this.createBoard();           // 创建空白棋盘
+        this.generatePairs();         // 生成配对的麻将棋子
+        this.shuffleBoard();          // 随机打乱棋盘
+        this.renderBoard();           // 渲染棋盘到DOM
+        this.attachEventListeners();  // 绑定事件监听器
+        this.updateUI();              // 更新UI显示
     }
 
+    /**
+     * 创建空白棋盘
+     * 初始化一个8x8的二维数组，所有位置都设为null
+     */
     createBoard() {
         this.board = [];
         for (let i = 0; i < this.boardSize; i++) {
@@ -35,27 +64,32 @@ class MahjongGame {
         }
     }
 
+    /**
+     * 生成配对的麻将棋子
+     * 确保每种类型的棋子都有偶数个，这样才能完全消除
+     */
     generatePairs() {
-        const totalTiles = this.boardSize * this.boardSize;
-        const tilesNeeded = totalTiles / 2; // 每种麻将子需要的对数
-        const tilesPerType = Math.floor(tilesNeeded / this.tileTypes.length) * 2;
-        const extraTiles = (tilesNeeded % this.tileTypes.length) * 2;
+        const totalTiles = this.boardSize * this.boardSize;           // 总格子数：64
+        const tilesNeeded = totalTiles / 2;                           // 需要的棋子对数：32对
+        const tilesPerType = Math.floor(tilesNeeded / this.tileTypes.length) * 2;  // 每种类型的基础棋子数
+        const extraTiles = (tilesNeeded % this.tileTypes.length) * 2; // 额外需要分配的棋子数
         
         const tiles = [];
             
-        // 为每种类型生成偶数个麻将子
+        // 为每种类型生成偶数个麻将子，确保可以完全配对
         for (let i = 0; i < this.tileTypes.length; i++) {
+            // 计算当前类型需要生成的棋子数量
             const count = tilesPerType + (i < extraTiles / 2 ? 2 : 0);
             for (let j = 0; j < count; j++) {
                 tiles.push({
-                    type: i,
-                    symbol: this.tileTypes[i],
-                    id: `${i}-${j}`
+                    type: i,                      // 棋子类型索引
+                    symbol: this.tileTypes[i],    // 棋子显示符号
+                    id: `${i}-${j}`              // 唯一标识符
                 });
             }
         }
 
-        // 填充棋盘
+        // 按顺序填充棋盘
         let tileIndex = 0;
         for (let row = 0; row < this.boardSize; row++) {
             for (let col = 0; col < this.boardSize; col++) {
@@ -66,8 +100,12 @@ class MahjongGame {
         }
     }
 
+    /**
+     * 随机打乱棋盘
+     * 使用Fisher-Yates洗牌算法重新排列所有棋子的位置
+     */
     shuffleBoard() {
-        // Fisher-Yates 洗牌算法
+        // 收集所有非空棋子
         const tiles = [];
         for (let row = 0; row < this.boardSize; row++) {
             for (let col = 0; col < this.boardSize; col++) {
@@ -77,12 +115,13 @@ class MahjongGame {
             }
         }
 
+        // Fisher-Yates 洗牌算法：从后往前遍历，每个元素与前面的随机元素交换
         for (let i = tiles.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [tiles[i], tiles[j]] = [tiles[j], tiles[i]];
         }
 
-        // 重新填充棋盘
+        // 将打乱后的棋子重新填充到棋盘中
         let tileIndex = 0;
         for (let row = 0; row < this.boardSize; row++) {
             for (let col = 0; col < this.boardSize; col++) {
@@ -91,23 +130,31 @@ class MahjongGame {
         }
     }
 
+    /**
+     * 渲染棋盘到DOM
+     * 清空游戏板并重新创建所有棋子元素
+     */
     renderBoard() {
         const gameBoard = document.getElementById('game-board');
-        gameBoard.innerHTML = '';
+        gameBoard.innerHTML = '';  // 清空现有内容
 
+        // 遍历棋盘的每个位置
         for (let row = 0; row < this.boardSize; row++) {
             for (let col = 0; col < this.boardSize; col++) {
                 const tile = this.board[row][col];
                 const tileElement = document.createElement('div');
+                
+                // 设置基础样式和位置属性
                 tileElement.className = 'tile';
                 tileElement.setAttribute('data-row', row);
                 tileElement.setAttribute('data-col', col);
 
+                // 如果当前位置有棋子，设置棋子相关属性
                 if (tile) {
-                    tileElement.textContent = tile.symbol;
-                    tileElement.classList.add(`tile-type-${tile.type}`);
-                    tileElement.setAttribute('data-type', tile.type);
-                    tileElement.setAttribute('data-id', tile.id);
+                    tileElement.textContent = tile.symbol;                    // 显示棋子符号
+                    tileElement.classList.add(`tile-type-${tile.type}`);     // 添加类型样式类
+                    tileElement.setAttribute('data-type', tile.type);        // 设置类型属性
+                    tileElement.setAttribute('data-id', tile.id);            // 设置唯一ID
                 }
 
                 gameBoard.appendChild(tileElement);
@@ -115,50 +162,71 @@ class MahjongGame {
         }
     }
 
+    /**
+     * 绑定事件监听器
+     * 为游戏板和控制按钮添加各种交互事件
+     */
     attachEventListeners() {
         const gameBoard = document.getElementById('game-board');
         const restartBtn = document.getElementById('restart-btn');
         const hintBtn = document.getElementById('hint-btn');
         const undoBtn = document.getElementById('undo-btn');
 
-        // 鼠标事件
-        gameBoard.addEventListener('mousedown', (e) => this.handleMouseDown(e));
-        gameBoard.addEventListener('mousemove', (e) => this.handleMouseMove(e));
-        gameBoard.addEventListener('mouseup', (e) => this.handleMouseUp(e));
-        gameBoard.addEventListener('click', (e) => this.handleClick(e));
+        // 鼠标事件（桌面端交互）
+        gameBoard.addEventListener('mousedown', (e) => this.handleMouseDown(e));   // 鼠标按下：开始拖拽
+        gameBoard.addEventListener('mousemove', (e) => this.handleMouseMove(e));   // 鼠标移动：拖拽过程
+        gameBoard.addEventListener('mouseup', (e) => this.handleMouseUp(e));       // 鼠标松开：结束拖拽
+        gameBoard.addEventListener('click', (e) => this.handleClick(e));           // 点击：选择棋子
 
         // 触摸事件（移动端支持）
-        gameBoard.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: false });
-        gameBoard.addEventListener('touchmove', (e) => this.handleTouchMove(e), { passive: false });
-        gameBoard.addEventListener('touchend', (e) => this.handleTouchEnd(e), { passive: false });
+        gameBoard.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: false });  // 触摸开始
+        gameBoard.addEventListener('touchmove', (e) => this.handleTouchMove(e), { passive: false });    // 触摸移动
+        gameBoard.addEventListener('touchend', (e) => this.handleTouchEnd(e), { passive: false });      // 触摸结束
 
-        // 按钮事件
-        restartBtn.addEventListener('click', () => this.restart());
-        hintBtn.addEventListener('click', () => this.showHint());
-        undoBtn.addEventListener('click', () => this.undoLastMove());
+        // 控制按钮事件
+        restartBtn.addEventListener('click', () => this.restart());        // 重新开始游戏
+        hintBtn.addEventListener('click', () => this.showHint());          // 显示提示
+        undoBtn.addEventListener('click', () => this.undoLastMove());      // 撤销上一步
 
-        // 防止拖拽时选中文本
+        // 防止拖拽时选中文本，避免干扰游戏体验
         gameBoard.addEventListener('selectstart', (e) => e.preventDefault());
     }
 
-    // 事件处理方法
+    /* ==================== 事件处理方法 ==================== */
+
+    /**
+     * 处理鼠标按下事件
+     * @param {MouseEvent} e - 鼠标事件对象
+     */
     handleMouseDown(e) {
         this.startDrag(e.target, e.clientX, e.clientY);
     }
 
+    /**
+     * 处理鼠标移动事件
+     * @param {MouseEvent} e - 鼠标事件对象
+     */
     handleMouseMove(e) {
         this.handleDragMove(e.clientX, e.clientY);
     }
 
+    /**
+     * 处理鼠标松开事件
+     * @param {MouseEvent} e - 鼠标事件对象
+     */
     handleMouseUp(e) {
         this.endDrag(e.clientX, e.clientY);
     }
 
+    /**
+     * 处理触摸开始事件（移动端）
+     * @param {TouchEvent} e - 触摸事件对象
+     */
     handleTouchStart(e) {
-        e.preventDefault();
+        e.preventDefault();  // 阻止默认行为，避免页面滚动等
         const touch = e.touches[0];
         
-        // 添加触摸反馈
+        // 添加触摸反馈效果，提升移动端体验
         const target = e.target;
         if (target.classList.contains('tile') && target.getAttribute('data-type')) {
             target.classList.add('touch-active');
@@ -167,58 +235,90 @@ class MahjongGame {
         this.startDrag(e.target, touch.clientX, touch.clientY);
     }
 
+    /**
+     * 处理触摸移动事件（移动端）
+     * @param {TouchEvent} e - 触摸事件对象
+     */
     handleTouchMove(e) {
-        e.preventDefault();
+        e.preventDefault();  // 阻止页面滚动
         const touch = e.touches[0];
         this.handleDragMove(touch.clientX, touch.clientY);
     }
 
+    /**
+     * 处理触摸结束事件（移动端）
+     * @param {TouchEvent} e - 触摸事件对象
+     */
     handleTouchEnd(e) {
         e.preventDefault();
         
-        // 移除触摸反馈
+        // 移除所有触摸反馈效果
         document.querySelectorAll('.tile.touch-active').forEach(tile => {
             tile.classList.remove('touch-active');
         });
         
+        // 获取触摸结束位置并处理拖拽结束
         if (e.changedTouches && e.changedTouches.length > 0) {
             const touch = e.changedTouches[0];
             this.endDrag(touch.clientX, touch.clientY);
         } else {
-            this.endDrag();
+            this.endDrag();  // 没有触摸位置信息时的fallback
         }
     }
 
+    /* ==================== 拖拽核心方法 ==================== */
+
+    /**
+     * 开始拖拽操作
+     * @param {HTMLElement} target - 被点击的目标元素
+     * @param {number} clientX - 点击的X坐标
+     * @param {number} clientY - 点击的Y坐标
+     */
     startDrag(target, clientX, clientY) {
+        // 只有棋子元素才能被拖拽
         if (!target.classList.contains('tile') || !target.getAttribute('data-type')) return;
 
+        // 获取棋子在棋盘中的位置
         const row = parseInt(target.getAttribute('data-row'));
         const col = parseInt(target.getAttribute('data-col'));
 
-        // 不立即设置 isDragging，等到真正开始拖动时再设置
+        // 记录拖拽开始的位置信息，但不立即设置isDragging
+        // 这样可以区分点击和拖拽操作
         this.dragStartPos = { row: row, col: col, x: clientX, y: clientY };
     }
 
+    /**
+     * 处理拖拽移动过程
+     * @param {number} clientX - 当前X坐标
+     * @param {number} clientY - 当前Y坐标
+     */
     handleDragMove(clientX, clientY) {
         if (!this.dragStartPos) return;
 
+        // 计算移动距离
         const deltaX = clientX - this.dragStartPos.x;
         const deltaY = clientY - this.dragStartPos.y;
-        const threshold = 30; // 拖拽阈值
+        const threshold = 30; // 拖拽阈值：超过30像素才认为是拖拽
 
-        // 只有当移动距离超过阈值时，才认为是真正的拖拽
+        // 只有当移动距离超过阈值时，才认为是真正的拖拽操作
         if (!this.isDragging && (Math.abs(deltaX) > threshold || Math.abs(deltaY) > threshold)) {
             this.isDragging = true;
+            // 给被拖拽的棋子添加拖拽样式
             const target = document.querySelector(`[data-row="${this.dragStartPos.row}"][data-col="${this.dragStartPos.col}"]`);
             if (target) {
                 target.classList.add('dragging');
             }
         }
         
-        // 持续更新结束位置
+        // 持续更新拖拽结束位置，用于计算移动方向
         this.dragEndPos = { x: clientX, y: clientY };
     }
 
+    /**
+     * 结束拖拽操作
+     * @param {number} endX - 拖拽结束的X坐标
+     * @param {number} endY - 拖拽结束的Y坐标
+     */
     endDrag(endX, endY) {
         console.log('=== 拖动结束 ===');
         console.log('结束坐标:', { endX, endY });
@@ -301,6 +401,12 @@ class MahjongGame {
         this.dragTiles = [];
     }
 
+    /**
+     * 将屏幕坐标转换为棋盘网格坐标
+     * @param {number} screenX - 屏幕X坐标
+     * @param {number} screenY - 屏幕Y坐标
+     * @returns {object} 网格坐标 {row, col}
+     */
     getGridPositionFromScreenCoords(screenX, screenY) {
         // 获取游戏板的位置和尺寸
         const gameBoard = document.getElementById('game-board');
@@ -395,6 +501,14 @@ class MahjongGame {
         }
     }
 
+    /**
+     * 移动棋子
+     * @param {number} startRow - 起始行
+     * @param {number} startCol - 起始列
+     * @param {string} direction - 移动方向 ('up', 'down', 'left', 'right')
+     * @param {number} moveDistance - 移动距离（格子数）
+     * @returns {number} 实际移动的距离
+     */
     moveTiles(startRow, startCol, direction, moveDistance = 1) {
         console.log('=== 执行移动 ===');
         console.log('移动参数:', { startRow, startCol, direction, moveDistance });
@@ -720,11 +834,19 @@ class MahjongGame {
         }
     }
 
-    // 点击事件处理
+    /* ==================== 点击事件处理 ==================== */
+
+    /**
+     * 处理棋子点击事件
+     * 实现棋子选择、自动消除等逻辑
+     * @param {MouseEvent} e - 点击事件对象
+     */
     handleClick(e) {
+        // 如果正在拖拽，忽略点击事件
         if (this.isDragging) return;
 
         const target = e.target;
+        // 只处理棋子的点击
         if (!target.classList.contains('tile') || !target.dataset.type) return;
 
         const row = parseInt(target.dataset.row);
@@ -752,21 +874,28 @@ class MahjongGame {
         }
     }
 
+    /**
+     * 智能消除选择
+     * 当选择一个棋子时，自动检查消除机会并执行相应操作
+     * @param {number} row - 棋子行位置
+     * @param {number} col - 棋子列位置
+     * @param {HTMLElement} target - 棋子DOM元素
+     */
     selectTileWithSmartElimination(row, col, target) {
-        // 检查所有可以消除的相同麻将子
+        // 检查当前棋子可以消除的所有相同类型棋子
         const eliminableOptions = this.getEliminableOptionsForTile(row, col);
         
         if (eliminableOptions.length === 1) {
-            // 只有一个可消除的相同麻将子，直接消除
+            // 只有一个可消除选项，直接自动消除
             const option = eliminableOptions[0];
             this.eliminatePair(option.row1, option.col1, option.row2, option.col2);
         } else if (eliminableOptions.length > 1) {
-            // 有多个可消除选项，选择当前麻将子并高亮所有可消除的选项
+            // 有多个可消除选项，选择当前棋子并高亮所有可消除的选项
             this.selectedTile = { row, col };
             target.classList.add('selected');
             this.highlightEliminable(row, col);
         } else {
-            // 没有可消除的选项，依然选择这个麻将子（用户可能想看看它的类型）
+            // 没有可消除的选项，依然选择这个棋子（让用户知道棋子类型）
             this.selectedTile = { row, col };
             target.classList.add('selected');
         }
@@ -798,67 +927,97 @@ class MahjongGame {
         return adjacentSameTiles;
     }
 
+    /* ==================== 消除逻辑 ==================== */
+
+    /**
+     * 判断两个棋子是否可以消除
+     * @param {number} row1 - 第一个棋子的行位置
+     * @param {number} col1 - 第一个棋子的列位置
+     * @param {number} row2 - 第二个棋子的行位置
+     * @param {number} col2 - 第二个棋子的列位置
+     * @returns {boolean} 是否可以消除
+     */
     canEliminate(row1, col1, row2, col2) {
         const tile1 = this.board[row1][col1];
         const tile2 = this.board[row2][col2];
 
+        // 基础条件：两个棋子都存在且类型相同
         if (!tile1 || !tile2 || tile1.type !== tile2.type) {
             return false;
         }
 
-        // 相邻的麻将子
+        // 情况1：相邻的棋子可以直接消除
         if (this.isAdjacent(row1, col1, row2, col2)) {
             return true;
         }
 
-        // 同一行且中间无障碍
+        // 情况2：同一行且中间无障碍物
         if (row1 === row2) {
             const minCol = Math.min(col1, col2);
             const maxCol = Math.max(col1, col2);
+            // 检查两个棋子之间是否有其他棋子阻挡
             for (let col = minCol + 1; col < maxCol; col++) {
                 if (this.board[row1][col]) {
-                    return false;
+                    return false;  // 有阻挡，不能消除
                 }
             }
-            return true;
+            return true;  // 路径畅通，可以消除
         }
 
-        // 同一列且中间无障碍
+        // 情况3：同一列且中间无障碍物
         if (col1 === col2) {
             const minRow = Math.min(row1, row2);
             const maxRow = Math.max(row1, row2);
+            // 检查两个棋子之间是否有其他棋子阻挡
             for (let row = minRow + 1; row < maxRow; row++) {
                 if (this.board[row][col1]) {
-                    return false;
+                    return false;  // 有阻挡，不能消除
                 }
             }
-            return true;
+            return true;  // 路径畅通，可以消除
         }
 
-        return false;
+        return false;  // 不满足任何消除条件
     }
 
+    /**
+     * 判断两个棋子是否相邻
+     * @param {number} row1 - 第一个棋子的行位置
+     * @param {number} col1 - 第一个棋子的列位置
+     * @param {number} row2 - 第二个棋子的行位置
+     * @param {number} col2 - 第二个棋子的列位置
+     * @returns {boolean} 是否相邻
+     */
     isAdjacent(row1, col1, row2, col2) {
         const rowDiff = Math.abs(row1 - row2);
         const colDiff = Math.abs(col1 - col2);
+        // 相邻定义：行差1列差0，或行差0列差1
         return (rowDiff === 1 && colDiff === 0) || (rowDiff === 0 && colDiff === 1);
     }
 
+    /**
+     * 执行棋子消除
+     * @param {number} row1 - 第一个棋子的行位置
+     * @param {number} col1 - 第一个棋子的列位置
+     * @param {number} row2 - 第二个棋子的行位置
+     * @param {number} col2 - 第二个棋子的列位置
+     */
     eliminatePair(row1, col1, row2, col2) {
-        // 添加消除动画
+        // 找到对应的DOM元素并添加消除动画
         const tile1Element = document.querySelector(`[data-row="${row1}"][data-col="${col1}"]`);
         const tile2Element = document.querySelector(`[data-row="${row2}"][data-col="${col2}"]`);
         
         tile1Element.classList.add('eliminating');
         tile2Element.classList.add('eliminating');
 
+        // 延迟执行消除，让动画播放完成
         setTimeout(() => {
-            this.board[row1][col1] = null;
-            this.board[row2][col2] = null;
-            this.score += 10;
-            this.renderBoard();
-            this.updateUI();
-            this.checkWin();
+            this.board[row1][col1] = null;    // 清除第一个棋子
+            this.board[row2][col2] = null;    // 清除第二个棋子
+            this.score += 10;                 // 增加分数
+            this.renderBoard();               // 重新渲染棋盘
+            this.updateUI();                  // 更新UI显示
+            this.checkWin();                  // 检查是否胜利
         }, 500);
     }
 
@@ -1055,9 +1214,14 @@ class MahjongGame {
     }
 }
 
-// 游戏初始化
+/* ==================== 游戏初始化 ==================== */
+
+/**
+ * 当DOM加载完成后初始化游戏
+ * 创建游戏实例并暴露到全局作用域以便调试
+ */
 document.addEventListener('DOMContentLoaded', () => {
     const game = new MahjongGame();
-    // 将游戏实例暴露到全局，便于调试
+    // 将游戏实例暴露到全局，便于调试和测试
     window.mahjongGame = game;
 });
