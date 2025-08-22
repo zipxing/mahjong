@@ -727,18 +727,21 @@ MahjongGame.prototype.endDrag = function(endX, endY) {
             console.log('网格移动计算:', '方向=' + direction, '步数=' + steps, 'gridDelta=(' + gridDeltaX + ',' + gridDeltaY + ')');
             
             if (steps > 0) {
+                console.log('准备执行移动:', '起始位置(' + this.dragStartPos.row + ',' + this.dragStartPos.col + ')', '方向=' + direction, '步数=' + steps);
                 // 执行移动
                 var actualMoved = this.moveTiles(this.dragStartPos.row, this.dragStartPos.col, direction, steps);
+                console.log('移动结果:', '实际移动步数=' + actualMoved);
                 
-                // 更新拖拽起始位置到移动后的位置
+                // 移动后检查是否有消除机会，如果没有则回退
                 if (actualMoved > 0) {
-                    this.updateDragPositionByDistance(direction, actualMoved);
-                    // 移动后检查是否有消除机会，如果没有则回退
                     this.checkEliminationAfterDrag();
                 } else {
+                    console.log('移动失败，显示反馈');
                     // 如果没有移动成功，给出视觉反馈
                     this.showMoveFailedFeedback(this.dragStartPos.row, this.dragStartPos.col);
                 }
+            } else {
+                console.log('步数为0，不执行移动');
             }
         }
     }
@@ -921,7 +924,11 @@ MahjongGame.prototype.moveTiles = function(startRow, startCol, direction, moveDi
             type: 'move',
             previousBoard: previousBoard,
             currentBoard: null, // 将在移动后设置
-            score: this.score
+            score: this.score,
+            startRow: startRow,
+            startCol: startCol,
+            direction: direction,
+            distance: actualMoveDistance
         });
 
         // 根据移动方向确定移动顺序，避免覆盖问题
@@ -1035,17 +1042,204 @@ MahjongGame.prototype.checkElimination = function() {
 };
 
 MahjongGame.prototype.checkEliminationAfterDrag = function() {
-    // 检查拖拽移动后是否有可消除的配对
-    var hasEliminableOption = this.hasAnyEliminableOptions();
+    // 检查被拖拽的麻将子移动后的消除选项
+    if (!this.dragStartPos) {
+        console.log('没有拖拽起始位置信息');
+        return;
+    }
     
-    if (!hasEliminableOption) {
-        console.log('拖拽移动后没有可消除的配对，执行回退');
+    // 找到移动后被拖拽麻将子的新位置
+    var draggedTileNewPos = this.findDraggedTileNewPosition();
+    if (!draggedTileNewPos) {
+        console.log('无法找到被拖拽麻将子的新位置');
+        this.clearSelection();
+        return;
+    }
+    
+    // 获取与被拖拽麻将子相关的消除选项
+    var eliminableOptions = this.getEliminableOptionsForTile(draggedTileNewPos.row, draggedTileNewPos.col);
+    console.log('被拖拽麻将子的消除选项数量:', eliminableOptions.length);
+    
+    if (eliminableOptions.length === 0) {
+        console.log('被拖拽麻将子移动后没有可消除的配对，执行回退');
         // 没有可消除的选项，回退移动
         this.rollbackLastMove();
-    } else {
-        console.log('拖拽移动后发现可消除的配对，移动有效');
-        // 有可消除的选项，移动有效，只清除选择状态
+    } else if (eliminableOptions.length === 1) {
+        console.log('被拖拽麻将子移动后有唯一可消除配对，自动消除');
+        // 只有一个可消除选项，自动消除
+        var option = eliminableOptions[0];
+        this.eliminatePair(option.row1, option.col1, option.row2, option.col2);
         this.clearSelection();
+    } else {
+        console.log('被拖拽麻将子移动后有多个可消除配对，等待用户选择');
+        // 有多个可消除选项，选中被拖拽的麻将子并高亮其可消除选项
+        this.selectedTile = { row: draggedTileNewPos.row, col: draggedTileNewPos.col };
+        var tileElement = document.querySelector('[data-row="' + draggedTileNewPos.row + '"][data-col="' + draggedTileNewPos.col + '"]');
+        if (tileElement) {
+            tileElement.classList.add('selected');
+        }
+        this.highlightEliminable(draggedTileNewPos.row, draggedTileNewPos.col);
+    }
+};
+
+MahjongGame.prototype.findDraggedTileNewPosition = function() {
+    // 根据移动历史找到被拖拽麻将子的新位置
+    if (this.moveHistory.length === 0) {
+        console.log('没有移动历史记录');
+        return null;
+    }
+    
+    var lastMove = this.moveHistory[this.moveHistory.length - 1];
+    console.log('最后一次移动记录:', lastMove);
+    
+    // 根据移动方向和距离计算新位置
+    var directions = {
+        'up': [-1, 0],
+        'down': [1, 0],
+        'left': [0, -1],
+        'right': [0, 1]
+    };
+    
+    var delta = directions[lastMove.direction];
+    if (!delta) {
+        console.log('无效的移动方向:', lastMove.direction);
+        return null;
+    }
+    
+    // 检查移动是否是从拖拽起始位置开始的
+    if (lastMove.startRow !== this.dragStartPos.row || lastMove.startCol !== this.dragStartPos.col) {
+        console.log('移动起始位置不匹配:', '期望(' + this.dragStartPos.row + ',' + this.dragStartPos.col + ')', '实际(' + lastMove.startRow + ',' + lastMove.startCol + ')');
+        console.log('使用移动记录中的起始位置作为原始位置');
+        // 使用移动记录中的起始位置来计算新位置
+        var newRow = lastMove.startRow + delta[0] * lastMove.distance;
+        var newCol = lastMove.startCol + delta[1] * lastMove.distance;
+        
+        console.log('基于移动记录计算新位置:', '原位置(' + lastMove.startRow + ',' + lastMove.startCol + ')', '新位置(' + newRow + ',' + newCol + ')');
+        
+        // 检查新位置是否有效且有麻将子
+        if (newRow >= 0 && newRow < this.boardSize && 
+            newCol >= 0 && newCol < this.boardSize && 
+            this.board[newRow][newCol]) {
+            return { row: newRow, col: newCol };
+        }
+        
+        console.log('基于移动记录计算的新位置无效或无麻将子');
+        return null;
+    }
+    
+    // 正常情况：位置匹配，使用拖拽起始位置计算新位置
+    var newRow = this.dragStartPos.row + delta[0] * lastMove.distance;
+    var newCol = this.dragStartPos.col + delta[1] * lastMove.distance;
+    
+    console.log('计算新位置:', '原位置(' + this.dragStartPos.row + ',' + this.dragStartPos.col + ')', '新位置(' + newRow + ',' + newCol + ')');
+    
+    // 检查新位置是否有效且有麻将子
+    if (newRow >= 0 && newRow < this.boardSize && 
+        newCol >= 0 && newCol < this.boardSize && 
+        this.board[newRow][newCol]) {
+        return { row: newRow, col: newCol };
+    }
+    
+    console.log('新位置无效或无麻将子');
+    return null;
+};
+
+MahjongGame.prototype.getEliminableOptionsForTile = function(row, col) {
+    var options = [];
+    var currentTile = this.board[row][col];
+    
+    console.log('检查位置(' + row + ',' + col + ')的消除选项，麻将子类型:', currentTile ? currentTile.type : 'null');
+    
+    if (!currentTile) {
+        console.log('当前位置没有麻将子');
+        return options;
+    }
+    
+    // 检查与当前麻将子可消除的所有配对
+    for (var r = 0; r < this.boardSize; r++) {
+        for (var c = 0; c < this.boardSize; c++) {
+            if (r === row && c === col) continue;
+            
+            var targetTile = this.board[r][c];
+            if (!targetTile) continue;
+            
+            // 只检查相同类型的麻将子
+            if (targetTile.type === currentTile.type) {
+                console.log('找到相同类型麻将子在(' + r + ',' + c + ')，检查是否可消除');
+                if (this.canEliminate(row, col, r, c)) {
+                    console.log('可以消除: (' + row + ',' + col + ') 和 (' + r + ',' + c + ')');
+                    // 判断是相邻还是同行/同列
+                    var isAdjacent = Math.abs(row - r) + Math.abs(col - c) === 1;
+                    options.push({
+                        row1: row, col1: col,
+                        row2: r, col2: c,
+                        type: isAdjacent ? 'adjacent' : 'line'
+                    });
+                } else {
+                    console.log('不能消除: (' + row + ',' + col + ') 和 (' + r + ',' + c + ')');
+                }
+            }
+        }
+    }
+    
+    console.log('总共找到', options.length, '个消除选项');
+    return options;
+};
+
+MahjongGame.prototype.getAllEliminableOptions = function() {
+    var options = [];
+    
+    // 遍历所有位置，找出所有可消除的配对
+    for (var row1 = 0; row1 < this.boardSize; row1++) {
+        for (var col1 = 0; col1 < this.boardSize; col1++) {
+            var tile1 = this.board[row1][col1];
+            if (!tile1) continue;
+            
+            // 检查所有其他位置的可消除配对
+            for (var row2 = 0; row2 < this.boardSize; row2++) {
+                for (var col2 = 0; col2 < this.boardSize; col2++) {
+                    if (row1 === row2 && col1 === col2) continue;
+                    // 避免重复添加同一对麻将（只保留一个方向）
+                    if (row1 > row2 || (row1 === row2 && col1 >= col2)) continue;
+                    
+                    var tile2 = this.board[row2][col2];
+                    if (!tile2) continue;
+                    
+                    if (this.canEliminate(row1, col1, row2, col2)) {
+                        // 判断是相邻还是同行/同列
+                        var isAdjacent = Math.abs(row1 - row2) + Math.abs(col1 - col2) === 1;
+                        options.push({
+                            row1: row1, col1: col1,
+                            row2: row2, col2: col2,
+                            type: isAdjacent ? 'adjacent' : 'line'
+                        });
+                    }
+                }
+            }
+        }
+    }
+    
+    return options;
+};
+
+MahjongGame.prototype.highlightAllEliminableOptions = function(options) {
+    // 高亮显示所有可消除的麻将子
+    this.clearSelection();
+    
+    for (var i = 0; i < options.length; i++) {
+        var option = options[i];
+        var tile1Element = document.querySelector('[data-row="' + option.row1 + '"][data-col="' + option.col1 + '"]');
+        var tile2Element = document.querySelector('[data-row="' + option.row2 + '"][data-col="' + option.col2 + '"]');
+        
+        if (tile1Element && tile2Element) {
+            if (option.type === 'adjacent') {
+                tile1Element.classList.add('adjacent-highlight');
+                tile2Element.classList.add('adjacent-highlight');
+            } else {
+                tile1Element.classList.add('highlight');
+                tile2Element.classList.add('highlight');
+            }
+        }
     }
 };
 
