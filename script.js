@@ -733,8 +733,8 @@ MahjongGame.prototype.endDrag = function(endX, endY) {
                 // 更新拖拽起始位置到移动后的位置
                 if (actualMoved > 0) {
                     this.updateDragPositionByDistance(direction, actualMoved);
-                    // 移动后检查消除
-                    this.checkElimination();
+                    // 移动后检查是否有消除机会，如果没有则回退
+                    this.checkEliminationAfterDrag();
                 } else {
                     // 如果没有移动成功，给出视觉反馈
                     this.showMoveFailedFeedback(this.dragStartPos.row, this.dragStartPos.col);
@@ -974,10 +974,79 @@ MahjongGame.prototype.moveTiles = function(startRow, startCol, direction, moveDi
     return 0; // 没有移动
 };
 
+MahjongGame.prototype.hasAnyEliminableOptions = function() {
+    // 检查棋盘上是否有任何可消除的配对
+    for (var row1 = 0; row1 < this.boardSize; row1++) {
+        for (var col1 = 0; col1 < this.boardSize; col1++) {
+            var tile1 = this.board[row1][col1];
+            if (!tile1) continue;
+            
+            for (var row2 = 0; row2 < this.boardSize; row2++) {
+                for (var col2 = 0; col2 < this.boardSize; col2++) {
+                    if (row1 === row2 && col1 === col2) continue;
+                    
+                    var tile2 = this.board[row2][col2];
+                    if (!tile2) continue;
+                    
+                    if (this.canEliminate(row1, col1, row2, col2)) {
+                        return true; // 找到可消除的配对
+                    }
+                }
+            }
+        }
+    }
+    return false; // 没有找到可消除的配对
+};
+
+MahjongGame.prototype.rollbackLastMove = function() {
+    // 回退最后一次移动
+    if (this.moveHistory.length > 0) {
+        var lastMove = this.moveHistory.pop();
+        console.log('回退移动，恢复到移动前状态');
+        
+        // 恢复棋盘状态
+        this.board = lastMove.previousBoard;
+        this.score = lastMove.score;
+        
+        // 更新UI
+        this.updateUndoButton();
+        this.renderBoard();
+        this.updateUI();
+        
+        // 显示回退反馈
+        this.showRollbackFeedback();
+    }
+};
+
+MahjongGame.prototype.showRollbackFeedback = function() {
+    // 显示回退的视觉反馈
+    var gameBoard = document.getElementById('game-board');
+    if (gameBoard) {
+        gameBoard.classList.add('rollback-feedback');
+        setTimeout(function() {
+            gameBoard.classList.remove('rollback-feedback');
+        }, 1000);
+    }
+};
+
 MahjongGame.prototype.checkElimination = function() {
-    // 拖动后不自动消除，只是清除选择状态
-    // 让玩家手动点击来决定是否消除
+    // 简单的清除选择状态，供其他地方使用
     this.clearSelection();
+};
+
+MahjongGame.prototype.checkEliminationAfterDrag = function() {
+    // 检查拖拽移动后是否有可消除的配对
+    var hasEliminableOption = this.hasAnyEliminableOptions();
+    
+    if (!hasEliminableOption) {
+        console.log('拖拽移动后没有可消除的配对，执行回退');
+        // 没有可消除的选项，回退移动
+        this.rollbackLastMove();
+    } else {
+        console.log('拖拽移动后发现可消除的配对，移动有效');
+        // 有可消除的选项，移动有效，只清除选择状态
+        this.clearSelection();
+    }
 };
 
 // 游戏初始化
