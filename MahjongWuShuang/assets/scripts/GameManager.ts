@@ -668,7 +668,7 @@ export class GameManager extends Component {
                 
                 if (this.canEliminate(row, col, r, c)) {
                     const tileNode = this.tileNodes[r][c];
-                    if (tileNode) {
+                    if (tileNode && tileNode.isValid) {
                         const sprite = tileNode.getComponent(Sprite);
                         if (sprite) {
                             sprite.color = new Color(255, 255, 144, 255); // 黄色高亮
@@ -689,17 +689,37 @@ export class GameManager extends Component {
         console.log(`清除 ${this.highlightedTiles.length} 个高亮麻将`);
         
         this.highlightedTiles.forEach((tileNode, index) => {
-            const sprite = tileNode.getComponent(Sprite);
-            if (sprite) {
-                const oldColor = sprite.color.clone();
-                sprite.color = new Color(240, 240, 240, 255); // 恢复原色
-                console.log(`清除高亮 ${index}: 颜色从 ${oldColor} 恢复为 ${sprite.color}`);
-            } else {
-                console.log(`高亮麻将 ${index} 没有 Sprite 组件`);
+            // 检查节点是否存在且有效
+            if (!tileNode) {
+                console.log(`高亮麻将 ${index} 为 null，跳过`);
+                return;
+            }
+            
+            if (!tileNode.isValid) {
+                console.log(`高亮麻将 ${index} 已失效，跳过`);
+                return;
+            }
+            
+            try {
+                const sprite = tileNode.getComponent(Sprite);
+                if (sprite) {
+                    const oldColor = sprite.color.clone();
+                    sprite.color = new Color(240, 240, 240, 255); // 恢复原色
+                    console.log(`清除高亮 ${index}: 颜色从 ${oldColor} 恢复为 ${sprite.color}`);
+                } else {
+                    console.log(`高亮麻将 ${index} 没有 Sprite 组件`);
+                }
+            } catch (error) {
+                console.error(`清除高亮 ${index} 时发生错误:`, error);
             }
         });
+        
+        // 清理数组，移除无效节点
+        this.highlightedTiles = this.highlightedTiles.filter(node => node && node.isValid);
+        console.log(`所有高亮已清除，剩余有效节点: ${this.highlightedTiles.length}`);
+        
+        // 最终清空数组
         this.highlightedTiles = [];
-        console.log('所有高亮已清除');
     }
     
     /**
@@ -1190,6 +1210,12 @@ export class GameManager extends Component {
         const tileData: (TileData | null)[] = [];
         const tileNodes: (Node | null)[] = [];
         
+        // 验证输入参数
+        if (!oldPositions || !newPositions || oldPositions.length === 0) {
+            console.error('移动参数无效，无法保存移动记录');
+            return;
+        }
+        
         // 保存移动记录用于回退
         this.lastMoveRecord = {
             oldPositions: [...oldPositions],
@@ -1201,8 +1227,16 @@ export class GameManager extends Component {
         console.log('保存移动记录，旧位置:', oldPositions);
         console.log('保存移动记录，新位置:', newPositions);
         
-        // 清除旧位置
+        // 清除旧位置（安全检查）
         oldPositions.forEach((pos, index) => {
+            // 验证位置有效性
+            if (!pos || typeof pos.row !== 'number' || typeof pos.col !== 'number' ||
+                pos.row < 0 || pos.row >= this.boardSize || 
+                pos.col < 0 || pos.col >= this.boardSize) {
+                console.error(`无效的旧位置 ${index}:`, pos);
+                return;
+            }
+            
             tileData[index] = this.board[pos.row][pos.col];
             tileNodes[index] = this.tileNodes[pos.row][pos.col];
             
@@ -1210,7 +1244,7 @@ export class GameManager extends Component {
             console.log(`麻将数据:`, tileData[index]);
             console.log(`麻将节点:`, tileNodes[index] ? '存在' : '不存在');
             
-            // 保存到移动记录
+            // 保存到移动记录（深拷贝数据）
             this.lastMoveRecord!.tileData[index] = tileData[index];
             this.lastMoveRecord!.tileNodes[index] = tileNodes[index];
             
@@ -1220,11 +1254,22 @@ export class GameManager extends Component {
             }
             if (!tileNodes[index]) {
                 console.warn(`位置 (${pos.row}, ${pos.col}) 的麻将节点为空`);
+            } else if (!tileNodes[index].isValid) {
+                console.warn(`位置 (${pos.row}, ${pos.col}) 的麻将节点已失效`);
             }
             
+            // 清除旧位置
             this.board[pos.row][pos.col] = null;
             this.tileNodes[pos.row][pos.col] = null;
         });
+        
+        // 验证移动记录完整性
+        if (this.lastMoveRecord.oldPositions.length !== this.lastMoveRecord.tileData.length ||
+            this.lastMoveRecord.oldPositions.length !== this.lastMoveRecord.tileNodes.length) {
+            console.error('移动记录数据不完整，清除记录');
+            this.lastMoveRecord = null;
+            return;
+        }
         
         console.log('移动记录保存完成:', this.lastMoveRecord);
         
@@ -1342,7 +1387,7 @@ export class GameManager extends Component {
         highlightPositions.forEach(posStr => {
             const [row, col] = posStr.split('-').map(Number);
             const tileNode = this.tileNodes[row][col];
-            if (tileNode) {
+            if (tileNode && tileNode.isValid) {
                 const sprite = tileNode.getComponent(Sprite);
                 if (sprite) {
                     sprite.color = new Color(255, 255, 144, 255); // 黄色高亮
@@ -1407,16 +1452,22 @@ export class GameManager extends Component {
             const tileNode = this.tileNodes[row][col];
             console.log(`尝试高亮移动麻将 (${row}, ${col}):`, tileNode ? '节点存在' : '节点不存在');
             
-            if (tileNode) {
-                const sprite = tileNode.getComponent(Sprite);
-                if (sprite) {
-                    const oldColor = sprite.color.clone();
-                    sprite.color = new Color(100, 100, 255, 255); // 更明显的蓝色高亮
-                    console.log(`麻将 (${row}, ${col}) 颜色从 ${oldColor} 改为 ${sprite.color}`);
-                } else {
-                    console.log(`麻将 (${row}, ${col}) 没有 Sprite 组件`);
+            if (tileNode && tileNode.isValid) {
+                try {
+                    const sprite = tileNode.getComponent(Sprite);
+                    if (sprite) {
+                        const oldColor = sprite.color.clone();
+                        sprite.color = new Color(100, 100, 255, 255); // 更明显的蓝色高亮
+                        console.log(`麻将 (${row}, ${col}) 颜色从 ${oldColor} 改为 ${sprite.color}`);
+                    } else {
+                        console.log(`麻将 (${row}, ${col}) 没有 Sprite 组件`);
+                    }
+                    this.highlightedTiles.push(tileNode);
+                } catch (error) {
+                    console.error(`高亮移动麻将 (${row}, ${col}) 时发生错误:`, error);
                 }
-                this.highlightedTiles.push(tileNode);
+            } else if (tileNode) {
+                console.log(`麻将 (${row}, ${col}) 节点已失效`);
             }
         });
         
@@ -1426,16 +1477,22 @@ export class GameManager extends Component {
             const tileNode = this.tileNodes[row][col];
             console.log(`尝试高亮消除伙伴 (${row}, ${col}):`, tileNode ? '节点存在' : '节点不存在');
             
-            if (tileNode) {
-                const sprite = tileNode.getComponent(Sprite);
-                if (sprite) {
-                    const oldColor = sprite.color.clone();
-                    sprite.color = new Color(255, 255, 100, 255); // 更明显的黄色高亮
-                    console.log(`麻将 (${row}, ${col}) 颜色从 ${oldColor} 改为 ${sprite.color}`);
-                } else {
-                    console.log(`麻将 (${row}, ${col}) 没有 Sprite 组件`);
+            if (tileNode && tileNode.isValid) {
+                try {
+                    const sprite = tileNode.getComponent(Sprite);
+                    if (sprite) {
+                        const oldColor = sprite.color.clone();
+                        sprite.color = new Color(255, 255, 100, 255); // 更明显的黄色高亮
+                        console.log(`麻将 (${row}, ${col}) 颜色从 ${oldColor} 改为 ${sprite.color}`);
+                    } else {
+                        console.log(`麻将 (${row}, ${col}) 没有 Sprite 组件`);
+                    }
+                    this.highlightedTiles.push(tileNode);
+                } catch (error) {
+                    console.error(`高亮消除伙伴 (${row}, ${col}) 时发生错误:`, error);
                 }
-                this.highlightedTiles.push(tileNode);
+            } else if (tileNode) {
+                console.log(`麻将 (${row}, ${col}) 节点已失效`);
             }
         });
         
@@ -1447,7 +1504,7 @@ export class GameManager extends Component {
      * 回退上次移动
      */
     private revertLastMove() {
-        console.log('回退上次移动');
+        console.log('=== 开始回退上次移动 ===');
         
         if (!this.lastMoveRecord) {
             console.log('没有移动记录，无法回退');
@@ -1457,76 +1514,124 @@ export class GameManager extends Component {
         const record = this.lastMoveRecord;
         console.log('回退移动记录:', record);
         
-        // 清除新位置
-        record.newPositions.forEach(pos => {
-            this.board[pos.row][pos.col] = null;
-            this.tileNodes[pos.row][pos.col] = null;
-        });
+        // 验证记录完整性
+        if (!record.oldPositions || !record.newPositions || !record.tileData || !record.tileNodes) {
+            console.error('移动记录数据不完整，无法安全回退');
+            this.lastMoveRecord = null;
+            return;
+        }
         
-        // 恢复旧位置
-        record.oldPositions.forEach((pos, index) => {
-            console.log(`恢复位置 ${index}: (${pos.row}, ${pos.col})`);
-            console.log(`麻将数据:`, record.tileData[index]);
-            console.log(`麻将节点:`, record.tileNodes[index] ? '存在' : '不存在');
+        if (record.oldPositions.length !== record.tileData.length || 
+            record.oldPositions.length !== record.tileNodes.length) {
+            console.error('移动记录数据长度不一致，无法安全回退');
+            this.lastMoveRecord = null;
+            return;
+        }
+        
+        try {
+            // 第一步：清除新位置（安全检查）
+            console.log('第一步：清除新位置');
+            record.newPositions.forEach((pos, index) => {
+                if (pos && typeof pos.row === 'number' && typeof pos.col === 'number' &&
+                    pos.row >= 0 && pos.row < this.boardSize && 
+                    pos.col >= 0 && pos.col < this.boardSize) {
+                    
+                    console.log(`清除新位置 (${pos.row}, ${pos.col})`);
+                    this.board[pos.row][pos.col] = null;
+                    this.tileNodes[pos.row][pos.col] = null;
+                } else {
+                    console.error(`无效的新位置 ${index}:`, pos);
+                }
+            });
             
-            this.board[pos.row][pos.col] = record.tileData[index];
-            this.tileNodes[pos.row][pos.col] = record.tileNodes[index];
-            
-            // 恢复节点位置
-            if (record.tileNodes[index]) {
-                const boardWidth = this.boardSize * this.tileSize + (this.boardSize - 1) * this.tileGap;
-                const boardHeight = this.boardSize * this.tileSize + (this.boardSize - 1) * this.tileGap;
-                const startX = -boardWidth / 2 + this.tileSize / 2;
-                const startY = boardHeight / 2 - this.tileSize / 2;
-                
-                const x = startX + pos.col * (this.tileSize + this.tileGap);
-                const y = startY - pos.row * (this.tileSize + this.tileGap);
-                
-                console.log(`计算位置: x=${x}, y=${y}, pos.col=${pos.col}, pos.row=${pos.row}`);
-                console.log(`参数检查: startX=${startX}, startY=${startY}, tileSize=${this.tileSize}, tileGap=${this.tileGap}`);
-                
-                // 检查参数有效性
-                if (typeof x !== 'number' || typeof y !== 'number' || isNaN(x) || isNaN(y)) {
-                    console.error(`位置参数无效: x=${x}, y=${y}`);
+            // 第二步：恢复旧位置（安全检查）
+            console.log('第二步：恢复旧位置');
+            record.oldPositions.forEach((pos, index) => {
+                if (!pos || typeof pos.row !== 'number' || typeof pos.col !== 'number' ||
+                    pos.row < 0 || pos.row >= this.boardSize || 
+                    pos.col < 0 || pos.col >= this.boardSize) {
+                    console.error(`无效的旧位置 ${index}:`, pos);
                     return;
                 }
                 
-                try {
-                    record.tileNodes[index]!.setPosition(x, y, 0);
-                    console.log(`成功设置节点位置: (${x}, ${y})`);
-                } catch (error) {
-                    console.error(`设置节点位置失败:`, error);
-                    console.error(`节点信息:`, record.tileNodes[index]);
-                }
+                const tileData = record.tileData[index];
+                const tileNode = record.tileNodes[index];
                 
-                // 恢复节点的网格信息
-                (record.tileNodes[index] as any).gridRow = pos.row;
-                (record.tileNodes[index] as any).gridCol = pos.col;
-            } else {
-                console.log(`跳过空节点 ${index}`);
-            }
-        });
-        
-        // 显示回退动画效果
-        record.oldPositions.forEach(pos => {
-            const tileNode = this.tileNodes[pos.row][pos.col];
-            if (tileNode) {
-                // 简单的闪烁效果表示回退
-                const originalColor = tileNode.getComponent(Sprite)?.color || Color.WHITE;
-                const sprite = tileNode.getComponent(Sprite);
-                if (sprite) {
-                    tween(sprite)
-                        .to(0.2, { color: new Color(255, 200, 200, 255) })
-                        .to(0.2, { color: originalColor })
-                        .start();
+                console.log(`恢复位置 ${index}: (${pos.row}, ${pos.col})`);
+                console.log(`麻将数据:`, tileData);
+                console.log(`麻将节点:`, tileNode ? '存在' : '不存在');
+                
+                // 恢复数据
+                this.board[pos.row][pos.col] = tileData;
+                this.tileNodes[pos.row][pos.col] = tileNode;
+                
+                // 恢复节点位置（如果节点存在）
+                if (tileNode && tileNode.isValid) {
+                    try {
+                        const boardWidth = this.boardSize * this.tileSize + (this.boardSize - 1) * this.tileGap;
+                        const boardHeight = this.boardSize * this.tileSize + (this.boardSize - 1) * this.tileGap;
+                        const startX = -boardWidth / 2 + this.tileSize / 2;
+                        const startY = boardHeight / 2 - this.tileSize / 2;
+                        
+                        const x = startX + pos.col * (this.tileSize + this.tileGap);
+                        const y = startY - pos.row * (this.tileSize + this.tileGap);
+                        
+                        // 检查参数有效性
+                        if (typeof x !== 'number' || typeof y !== 'number' || isNaN(x) || isNaN(y)) {
+                            console.error(`位置参数无效: x=${x}, y=${y}`);
+                            return;
+                        }
+                        
+                        tileNode.setPosition(x, y, 0);
+                        console.log(`成功设置节点位置: (${x}, ${y})`);
+                        
+                        // 恢复节点的网格信息
+                        (tileNode as any).gridRow = pos.row;
+                        (tileNode as any).gridCol = pos.col;
+                        
+                    } catch (error) {
+                        console.error(`设置节点位置失败:`, error);
+                        console.error(`节点信息:`, tileNode);
+                    }
+                } else if (tileNode) {
+                    console.warn(`节点 ${index} 已失效，跳过位置设置`);
                 }
-            }
-        });
-        
-        // 清除移动记录
-        this.lastMoveRecord = null;
-        
-        console.log('移动已回退');
+            });
+            
+            // 第三步：显示回退动画效果（安全检查）
+            console.log('第三步：显示回退动画');
+            record.oldPositions.forEach((pos, index) => {
+                if (pos && pos.row >= 0 && pos.row < this.boardSize && 
+                    pos.col >= 0 && pos.col < this.boardSize) {
+                    
+                    const tileNode = this.tileNodes[pos.row][pos.col];
+                    if (tileNode && tileNode.isValid) {
+                        const sprite = tileNode.getComponent(Sprite);
+                        if (sprite) {
+                            const originalColor = sprite.color.clone();
+                            tween(sprite)
+                                .to(0.2, { color: new Color(255, 200, 200, 255) })
+                                .to(0.2, { color: originalColor })
+                                .start();
+                        }
+                    }
+                }
+            });
+            
+            console.log('=== 移动回退成功 ===');
+            
+        } catch (error) {
+            console.error('回退过程中发生错误:', error);
+            console.error('尝试清理状态...');
+            
+            // 发生错误时，尝试清理可能的不一致状态
+            this.clearSelection();
+            this.clearAllHighlights();
+        } finally {
+            // 无论成功还是失败，都清除移动记录
+            this.lastMoveRecord = null;
+            console.log('移动记录已清除');
+        }
     }
     
     /**
