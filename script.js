@@ -27,8 +27,9 @@ class MahjongGame {
         this.dragTiles = [];                   // 拖拽过程中涉及的棋子列表
         
         // 拖拽虚影相关状态
-        this.dragShadows = [];                 // 当前拖动组的所有虚影元素
-        this.dragGroup = [];                   // 当前拖动的麻将组
+        this.dragShadows = [];                 // 当前拖动组的所有虚影元素数组
+        this.dragGroup = [];                   // 当前拖动的麻将组位置信息
+        this.dragDirection = null;             // 拖拽方向：'up'/'down'/'left'/'right'
         
         // 历史记录（用于撤销功能）
         this.moveHistory = [];                 // 移动历史记录
@@ -290,12 +291,12 @@ class MahjongGame {
         console.log('目标位置:', { row, col });
 
         // 记录拖拽开始的位置信息，但不立即设置isDragging
-        // 这样可以区分点击和拖拽操作
+        // 这样可以区分点击和拖拽操作（需要移动一定距离才算真正拖拽）
         this.dragStartPos = { row: row, col: col, x: clientX, y: clientY };
         
-        // 找到当前拖动的麻将组（同行或同列的连续麻将）
+        // 初始化拖动组（开始时只包含被点击的麻将）
         this.dragGroup = this.findDragGroup(row, col);
-        console.log('找到拖动组:', this.dragGroup);
+        console.log('初始拖动组:', this.dragGroup);
     }
 
     /**
@@ -317,27 +318,29 @@ class MahjongGame {
             console.log('移动距离:', { deltaX, deltaY });
             this.isDragging = true;
             
-            // 根据拖拽方向确定拖动组
+            // 根据鼠标移动方向确定拖拽方向
             let direction = '';
             if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                // 水平移动距离更大，判断为左右拖拽
                 direction = deltaX > 0 ? 'right' : 'left';
             } else {
+                // 垂直移动距离更大，判断为上下拖拽
                 direction = deltaY > 0 ? 'down' : 'up';
             }
             
             console.log('拖拽方向:', direction);
             
-            // 存储拖拽方向，用于虚影位置计算
+            // 存储拖拽方向，用于约束虚影移动方向
             this.dragDirection = direction;
             
-            // 根据方向更新拖动组
+            // 根据拖拽方向更新拖动组（找到该方向上的连续麻将）
             const directionGroup = this.findDragGroupForDirection(this.dragStartPos.row, this.dragStartPos.col, direction);
             if (directionGroup.length > 0) {
                 this.dragGroup = directionGroup;
                 console.log('更新后的拖动组:', this.dragGroup);
             }
             
-            // 为拖动组中的每个麻将添加拖拽样式和创建虚影
+            // 为拖动组中的每个麻将创建跟随鼠标的虚影
             this.createDragGroupShadows(clientX, clientY);
         }
         
@@ -360,12 +363,12 @@ class MahjongGame {
         console.log('结束坐标:', { endX, endY });
         console.log('开始位置:', this.dragStartPos);
         
-        // 清除拖拽状态
+        // 清除拖拽相关的视觉状态
         document.querySelectorAll('.tile.dragging').forEach(tile => {
             tile.classList.remove('dragging');
         });
         this.clearDragIndicators();
-        this.destroyDragGroupShadows();
+        this.destroyDragGroupShadows(); // 销毁所有虚影元素
 
         if (this.isDragging && this.dragStartPos && (endX !== undefined && endY !== undefined)) {
             // 计算松手时的移动方向和距离
@@ -436,7 +439,7 @@ class MahjongGame {
         this.dragStartPos = null;
         this.dragEndPos = null;
         this.dragTiles = [];
-        this.dragDirection = null;
+        this.dragDirection = null; // 清除拖拽方向状态
     }
 
     /**
@@ -543,10 +546,11 @@ class MahjongGame {
 
     /**
      * 根据拖拽方向找到当前拖动的麻将组
+     * 用于确定哪些麻将会一起移动并显示虚影
      * @param {number} startRow - 开始位置的行
      * @param {number} startCol - 开始位置的列
-     * @param {string} direction - 拖拽方向
-     * @returns {Array} 拖动的麻将位置数组
+     * @param {string} direction - 拖拽方向 ('up'/'down'/'left'/'right')
+     * @returns {Array} 拖动的麻将位置数组 [{row, col}, ...]
      */
     findDragGroupForDirection(startRow, startCol, direction) {
         return this.getTilesInDirection(startRow, startCol, direction);
@@ -554,27 +558,30 @@ class MahjongGame {
     
     /**
      * 找到当前位置的初始拖动组（单个麻将）
+     * 在拖拽开始时调用，此时还不知道拖拽方向
      * @param {number} startRow - 开始位置的行
      * @param {number} startCol - 开始位置的列
-     * @returns {Array} 拖动的麻将位置数组
+     * @returns {Array} 拖动的麻将位置数组，初始时只包含起始麻将
      */
     findDragGroup(startRow, startCol) {
-        // 初始时只包含被点击的麻将
+        // 初始时只包含被点击的麻将，等确定拖拽方向后再更新
         return [{ row: startRow, col: startCol }];
     }
 
     /**
      * 获取指定方向上的连续麻将（基于moveTiles的逻辑）
+     * 这个方法与游戏的移动逻辑保持一致，确保虚影显示的麻将就是实际会移动的麻将
      * @param {number} startRow - 起始行
      * @param {number} startCol - 起始列
-     * @param {string} direction - 方向
-     * @returns {Array} 该方向上的连续麻将
+     * @param {string} direction - 方向 ('up'/'down'/'left'/'right')
+     * @returns {Array} 该方向上的连续麻将位置数组，如果只有单个麻将则返回空数组
      */
     getTilesInDirection(startRow, startCol, direction) {
         const tilesToMove = [];
         
         // 使用与moveTiles相同的逻辑来找连续的麻将
         if (direction === 'up') {
+            // 向上查找：从起始位置向上遍历，直到遇到空位置
             for (let row = startRow; row >= 0; row--) {
                 if (this.board[row][startCol]) {
                     tilesToMove.push({ row, col: startCol });
@@ -583,6 +590,7 @@ class MahjongGame {
                 }
             }
         } else if (direction === 'down') {
+            // 向下查找：从起始位置向下遍历，直到遇到空位置
             for (let row = startRow; row < this.boardSize; row++) {
                 if (this.board[row][startCol]) {
                     tilesToMove.push({ row, col: startCol });
@@ -591,6 +599,7 @@ class MahjongGame {
                 }
             }
         } else if (direction === 'left') {
+            // 向左查找：从起始位置向左遍历，直到遇到空位置
             for (let col = startCol; col >= 0; col--) {
                 if (this.board[startRow][col]) {
                     tilesToMove.push({ row: startRow, col });
@@ -599,6 +608,7 @@ class MahjongGame {
                 }
             }
         } else if (direction === 'right') {
+            // 向右查找：从起始位置向右遍历，直到遇到空位置
             for (let col = startCol; col < this.boardSize; col++) {
                 if (this.board[startRow][col]) {
                     tilesToMove.push({ row: startRow, col });
@@ -608,12 +618,13 @@ class MahjongGame {
             }
         }
         
-        // 只有当有多个连续的麻将时才返回，单个麻将不算组
+        // 只有当有多个连续的麻将时才返回，单个麻将不算组（不需要显示多个虚影）
         return tilesToMove.length > 1 ? tilesToMove : [];
     }
 
     /**
-     * 为拖动组创建虚影
+     * 为拖动组创建虚影元素
+     * 虚影会根据拖拽方向约束移动：横向拖拽时虚影只能水平移动，纵向拖拽时只能垂直移动
      * @param {number} clientX - 鼠标X坐标
      * @param {number} clientY - 鼠标Y坐标
      */
@@ -621,10 +632,10 @@ class MahjongGame {
         console.log('=== 创建拖动组虚影 ===');
         console.log('拖动组:', this.dragGroup);
         
-        // 清理之前的虚影（但不清空dragGroup）
+        // 清理之前的虚影元素（但保留dragGroup信息）
         this.clearDragShadows();
         
-        // 获取起始麻将的屏幕位置作为基准
+        // 获取起始麻将的屏幕位置作为基准点
         const startTileElement = document.querySelector(`[data-row="${this.dragStartPos.row}"][data-col="${this.dragStartPos.col}"]`);
         if (!startTileElement) return;
         
@@ -665,15 +676,15 @@ class MahjongGame {
                     shadow.classList.add(`tile-type-${tileType}`);
                 }
                 
-                // 根据拖拽方向设置虚影位置
+                // 根据拖拽方向设置虚影位置（实现移动约束）
                 let shadowX, shadowY;
                 
                 if (this.dragDirection === 'left' || this.dragDirection === 'right') {
-                    // 横向拖动：虚影只在水平方向跟随鼠标，垂直位置保持原位置
+                    // 横向拖动：虚影只在水平方向跟随鼠标，垂直位置固定在原行
                     shadowX = clientX + relativeOffsetX;
                     shadowY = tileRect.top; // 保持原始垂直位置
                 } else {
-                    // 纵向拖动：虚影只在垂直方向跟随鼠标，水平位置保持原位置
+                    // 纵向拖动：虚影只在垂直方向跟随鼠标，水平位置固定在原列
                     shadowX = tileRect.left; // 保持原始水平位置
                     shadowY = clientY + relativeOffsetY;
                 }
@@ -681,11 +692,11 @@ class MahjongGame {
                 shadow.style.left = `${shadowX}px`;
                 shadow.style.top = `${shadowY}px`;
                 
-                // 存储相对偏移量和原始位置，用于后续更新位置
+                // 存储相对偏移量和原始位置，用于后续位置更新
                 shadow.relativeOffsetX = relativeOffsetX;
                 shadow.relativeOffsetY = relativeOffsetY;
-                shadow.originalLeft = tileRect.left;
-                shadow.originalTop = tileRect.top;
+                shadow.originalLeft = tileRect.left;   // 原始水平位置
+                shadow.originalTop = tileRect.top;     // 原始垂直位置
                 
                 // 添加到DOM和虚影数组
                 document.body.appendChild(shadow);
@@ -700,6 +711,7 @@ class MahjongGame {
 
     /**
      * 更新拖动组虚影的位置
+     * 根据拖拽方向约束虚影移动：横向拖拽时只能水平移动，纵向拖拽时只能垂直移动
      * @param {number} clientX - 鼠标X坐标
      * @param {number} clientY - 鼠标Y坐标
      */
@@ -707,15 +719,15 @@ class MahjongGame {
         for (let i = 0; i < this.dragShadows.length; i++) {
             const shadow = this.dragShadows[i];
             if (shadow && shadow.relativeOffsetX !== undefined && shadow.relativeOffsetY !== undefined) {
-                // 根据拖拽方向更新虚影位置
+                // 根据拖拽方向计算虚影新位置（实现移动约束）
                 let shadowX, shadowY;
                 
                 if (this.dragDirection === 'left' || this.dragDirection === 'right') {
-                    // 横向拖动：虚影只在水平方向跟随鼠标，垂直位置保持原位置
+                    // 横向拖动：虚影只在水平方向跟随鼠标，垂直位置固定
                     shadowX = clientX + shadow.relativeOffsetX;
                     shadowY = shadow.originalTop; // 保持原始垂直位置
                 } else {
-                    // 纵向拖动：虚影只在垂直方向跟随鼠标，水平位置保持原位置
+                    // 纵向拖动：虚影只在垂直方向跟随鼠标，水平位置固定
                     shadowX = shadow.originalLeft; // 保持原始水平位置
                     shadowY = clientY + shadow.relativeOffsetY;
                 }
@@ -728,6 +740,7 @@ class MahjongGame {
 
     /**
      * 清理虚影元素（但保留拖动组信息）
+     * 用于在创建新虚影前清理旧虚影，或在拖拽过程中需要重新创建虚影时调用
      */
     clearDragShadows() {
         for (const shadow of this.dragShadows) {
@@ -739,7 +752,8 @@ class MahjongGame {
     }
 
     /**
-     * 销毁拖动组的所有虚影并清理状态
+     * 销毁拖动组的所有虚影并清理相关状态
+     * 在拖拽结束、游戏重启或切换到点击模式时调用
      */
     destroyDragGroupShadows() {
         this.clearDragShadows();
@@ -1090,7 +1104,7 @@ class MahjongGame {
         // 如果正在拖拽，忽略点击事件
         if (this.isDragging) return;
 
-        // 清理拖拽虚影状态（点击操作时不需要显示拖拽虚影）
+        // 清理拖拽虚影状态（点击操作与拖拽操作互斥）
         this.destroyDragGroupShadows();
 
         const target = e.target;
@@ -1458,7 +1472,7 @@ class MahjongGame {
         this.eliminationHistory = [];
         this.hintHighlighted = false;
         
-        // 清理虚影相关状态
+        // 清理拖拽虚影相关状态
         this.destroyDragGroupShadows();
         
         this.clearSelection();
