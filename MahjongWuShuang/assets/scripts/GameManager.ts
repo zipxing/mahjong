@@ -8,12 +8,12 @@
  * - 点击选择与智能消除系统
  * - 拖拽移动与推动效果
  * - 移动失败自动回退
- * - 丰富的视觉反馈（高亮、缩放、边框、动画）
+ * - 丰富的视觉反馈（高亮、缩放、动画）
  * - 完整的触摸事件处理
  * - 坐标系统转换（屏幕坐标 ↔ 网格坐标）
  * 
  * 技术要点：
- * - 使用Graphics组件绘制高亮边框
+ * - 使用背景颜色变化实现简洁的高亮效果
  * - 使用Tween系统实现各种动画效果
  * - 完善的错误处理和安全检查
  * - 智能的拖拽组选择算法（推动逻辑）
@@ -24,7 +24,7 @@
  * @date 2024
  */
 
-import { _decorator, Component, Node, Vec3, Color, Label, Sprite, UITransform, input, Input, EventTouch, Vec2, tween, UIOpacity, Graphics } from 'cc';
+import { _decorator, Component, Node, Vec3, Color, Label, Sprite, UITransform, input, Input, EventTouch, Vec2, tween, UIOpacity } from 'cc';
 const { ccclass, property } = _decorator;
 
 /**
@@ -85,76 +85,62 @@ export class GameManager extends Component {
     }
     
     /**
-     * 添加高亮边框
+     * 设置麻将高亮效果（简洁版）
      * 
      * 功能：
-     * - 使用Graphics组件绘制矩形边框
-     * - 支持自定义边框颜色
-     * - 避免重复创建边框（检查已存在的边框）
+     * - 通过背景颜色变化实现高亮
+     * - 通过缩放效果增强视觉反馈
+     * - 更简洁美观的高亮方式
      * 
      * @param tileNode 目标麻将节点
-     * @param borderColor 边框颜色
+     * @param highlightColor 高亮背景颜色
+     * @param scale 缩放比例
      */
-    private addHighlightBorder(tileNode: Node, borderColor: Color) {
-        // 检查是否已经有边框
-        let borderNode = tileNode.getChildByName('HighlightBorder');
-        if (!borderNode) {
-            borderNode = new Node('HighlightBorder');
-            const borderTransform = borderNode.addComponent(UITransform);
-            borderTransform.setContentSize(this.tileSize, this.tileSize);
-            
-            const graphics = borderNode.addComponent(Graphics);
-            
-            // 绘制边框
-            graphics.strokeColor = borderColor;
-            graphics.lineWidth = 3;
-            graphics.rect(-this.tileSize/2, -this.tileSize/2, this.tileSize, this.tileSize);
-            graphics.stroke();
-            
-            // 设置边框在最上层
-            borderNode.setSiblingIndex(999);
-            tileNode.addChild(borderNode);
-            
-            console.log('添加Graphics高亮边框，颜色:', borderColor);
-        } else {
-            // 更新现有边框颜色
-            const graphics = borderNode.getComponent(Graphics);
-            if (graphics) {
-                graphics.clear();
-                graphics.strokeColor = borderColor;
-                graphics.lineWidth = 3;
-                graphics.rect(-this.tileSize/2, -this.tileSize/2, this.tileSize, this.tileSize);
-                graphics.stroke();
-                console.log('更新Graphics边框颜色:', borderColor);
+    private setTileHighlight(tileNode: Node, highlightColor: Color, scale: number = 1.15) {
+        // 设置背景颜色高亮
+        const sprite = tileNode.getComponent(Sprite);
+        if (sprite) {
+            // 保存原始颜色（如果还没保存）
+            if (!(tileNode as any).originalSpriteColor) {
+                (tileNode as any).originalSpriteColor = sprite.color.clone();
             }
+            sprite.color = highlightColor;
+            console.log('设置背景高亮颜色:', highlightColor);
         }
+        
+        // 设置缩放效果
+        tileNode.setScale(scale, scale, 1.0);
+        console.log('设置缩放:', scale);
     }
     
     /**
-     * 移除高亮边框
+     * 清除麻将高亮效果
      * 
      * 功能：
-     * - 查找并销毁麻将节点的边框子节点
-     * - 包含安全检查防止空指针异常
+     * - 恢复原始背景颜色
+     * - 恢复原始缩放
      * 
      * @param tileNode 目标麻将节点
      */
-    private removeHighlightBorder(tileNode: Node) {
+    private clearTileHighlight(tileNode: Node) {
         if (!tileNode || !tileNode.isValid) {
-            console.log('节点无效，跳过移除边框');
+            console.log('节点无效，跳过清除高亮');
             return;
         }
         
         try {
-            const borderNode = tileNode.getChildByName('HighlightBorder');
-            if (borderNode && borderNode.isValid) {
-                borderNode.destroy();
-                console.log('移除高亮边框');
-            } else {
-                console.log('没有找到或边框节点已失效');
+            // 恢复背景颜色
+            const sprite = tileNode.getComponent(Sprite);
+            if (sprite && (tileNode as any).originalSpriteColor) {
+                sprite.color = (tileNode as any).originalSpriteColor.clone();
+                console.log('恢复原始背景颜色');
             }
+            
+            // 恢复缩放
+            tileNode.setScale(1.0, 1.0, 1.0);
+            console.log('恢复原始缩放');
         } catch (error) {
-            console.error('移除高亮边框时发生错误:', error);
+            console.error('清除麻将高亮时发生错误:', error);
         }
     }
     
@@ -242,10 +228,7 @@ export class GameManager extends Component {
         
         console.log('游戏初始化完成！');
         
-        // 延迟测试高亮效果
-        setTimeout(() => {
-            this.testHighlight();
-        }, 1000);
+
     }
     
     /**
@@ -859,103 +842,20 @@ export class GameManager extends Component {
         console.log('=== 开始高亮选中麻将 ===');
         console.log('麻将节点:', tileNode.name);
         
-        // 设置Label颜色为蓝色
-        const labelNode = tileNode.getChildByName('Label');
-        if (labelNode) {
-            const label = labelNode.getComponent(Label);
-            if (label) {
-                // 保存原始颜色
-                const originalColor = label.color.clone();
-                (labelNode as any).originalColor = originalColor;
-                label.color = new Color(0, 150, 255, 255); // 明亮的蓝色
-                console.log('设置选中麻将Label颜色:', `从 ${originalColor} 改为 ${label.color}`);
-            } else {
-                console.log('没有找到Label组件');
-            }
-        } else {
-            console.log('没有找到Label子节点');
-        }
+        // 使用简洁的高亮效果：浅蓝色背景 + 缩放
+        this.setTileHighlight(tileNode, new Color(200, 230, 255, 255), 1.15);
         
-        // 设置Sprite颜色
-        const sprite = tileNode.getComponent(Sprite);
-        if (sprite) {
-            const originalColor = sprite.color.clone();
-            sprite.color = new Color(144, 205, 244, 255); // 蓝色高亮
-            console.log('设置选中麻将Sprite颜色:', `从 ${originalColor} 改为 ${sprite.color}`);
-        } else {
-            console.log('没有找到Sprite组件');
-        }
-        
-        // 添加蓝色边框
-        console.log('添加蓝色边框');
-        this.addHighlightBorder(tileNode, new Color(0, 150, 255, 255));
-        
-        // 添加选中动画
+        // 添加选中动画（轻微的弹跳效果）
         console.log('添加选中动画');
         tween(tileNode)
-            .to(0.1, { scale: new Vec3(1.1, 1.1, 1) })
-            .to(0.1, { scale: new Vec3(1, 1, 1) })
+            .to(0.1, { scale: new Vec3(1.2, 1.2, 1) })
+            .to(0.1, { scale: new Vec3(1.15, 1.15, 1) })
             .start();
             
         console.log('=== 选中麻将高亮完成 ===');
     }
     
-    /**
-     * 清除麻将高亮
-     */
-    private clearTileHighlight(tileNode: Node) {
-        console.log('=== 开始清除麻将高亮 ===');
-        
-        // 检查节点有效性
-        if (!tileNode) {
-            console.log('麻将节点为null，跳过清除');
-            return;
-        }
-        
-        if (!tileNode.isValid) {
-            console.log('麻将节点已失效，跳过清除');
-            return;
-        }
-        
-        console.log('清除麻将节点:', tileNode.name);
-        
-        try {
-            // 恢复Label颜色
-            const labelNode = tileNode.getChildByName('Label');
-            if (labelNode) {
-                const label = labelNode.getComponent(Label);
-                if (label && (labelNode as any).originalColor) {
-                    label.color = (labelNode as any).originalColor;
-                    console.log('恢复麻将Label颜色');
-                } else {
-                    console.log('没有保存的原始Label颜色');
-                }
-            } else {
-                console.log('没有找到Label子节点');
-            }
-            
-            // 恢复Sprite颜色
-            const sprite = tileNode.getComponent(Sprite);
-            if (sprite) {
-                sprite.color = new Color(240, 240, 240, 255); // 恢复原色
-                console.log('恢复麻将Sprite颜色');
-            } else {
-                console.log('没有找到Sprite组件');
-            }
-            
-            // 恢复缩放
-            tileNode.setScale(1.0, 1.0, 1.0);
-            console.log('恢复麻将缩放');
-            
-            // 移除边框
-            this.removeHighlightBorder(tileNode);
-            
-        } catch (error) {
-            console.error('清除麻将高亮时发生错误:', error);
-        }
-        
-        console.log('=== 麻将高亮清除完成 ===');
-    }
+
     
     /**
      * 高亮可消除的麻将
@@ -987,30 +887,8 @@ export class GameManager extends Component {
                         console.log(`高亮麻将: (${r}, ${c})`);
                         
                         // 方法1：修改Label颜色（更可靠）
-                        const labelNode = tileNode.getChildByName('Label');
-                        if (labelNode) {
-                            const label = labelNode.getComponent(Label);
-                            if (label) {
-                                // 保存原始颜色
-                                (labelNode as any).originalColor = label.color.clone();
-                                label.color = new Color(255, 255, 0, 255); // 明亮的黄色
-                                console.log(`设置Label颜色为黄色`);
-                            }
-                        }
-                        
-                        // 方法1.5：同时尝试修改Sprite颜色
-                        const sprite = tileNode.getComponent(Sprite);
-                        if (sprite) {
-                            sprite.color = new Color(255, 255, 100, 255); // 明亮的黄色背景
-                            console.log(`设置Sprite颜色为黄色`);
-                        }
-                        
-                        // 方法2：缩放效果
-                        tileNode.setScale(1.15, 1.15, 1.0);
-                        console.log(`设置缩放为1.15`);
-                        
-                        // 方法3：添加边框效果（创建一个边框子节点）
-                        this.addHighlightBorder(tileNode, new Color(255, 255, 0, 255));
+                        // 使用简洁的高亮效果：浅黄色背景 + 缩放
+                        this.setTileHighlight(tileNode, new Color(255, 255, 200, 255), 1.15);
                         
                         this.highlightedTiles.push(tileNode);
                     }
@@ -1046,30 +924,8 @@ export class GameManager extends Component {
             }
             
             try {
-                // 恢复Label颜色
-                const labelNode = tileNode.getChildByName('Label');
-                if (labelNode) {
-                    const label = labelNode.getComponent(Label);
-                    if (label && (labelNode as any).originalColor) {
-                        label.color = (labelNode as any).originalColor;
-                        console.log(`恢复Label颜色`);
-                    }
-                }
-                
-                // 恢复Sprite颜色
-                const sprite = tileNode.getComponent(Sprite);
-                if (sprite) {
-                    sprite.color = new Color(240, 240, 240, 255); // 恢复原色
-                    console.log(`恢复Sprite颜色`);
-                }
-                
-                // 恢复缩放
-                tileNode.setScale(1.0, 1.0, 1.0);
-                console.log(`恢复缩放为1.0`);
-                
-                // 移除边框
-                this.removeHighlightBorder(tileNode);
-                
+                // 使用简洁的清除高亮方法
+                this.clearTileHighlight(tileNode);
             } catch (error) {
                 console.error(`清除高亮 ${index} 时发生错误:`, error);
             }
@@ -1907,22 +1763,9 @@ export class GameManager extends Component {
         const originalTileNode = this.tileNodes[originalTilePos.row][originalTilePos.col];
         if (originalTileNode && originalTileNode.isValid) {
             try {
-                // 设置Label颜色为蓝色
-                const labelNode = originalTileNode.getChildByName('Label');
-                if (labelNode) {
-                    const label = labelNode.getComponent(Label);
-                    if (label) {
-                        (labelNode as any).originalColor = label.color.clone();
-                        label.color = new Color(0, 150, 255, 255); // 蓝色
-                        console.log(`高亮原始拖动麻将 (${originalTilePos.row}, ${originalTilePos.col}) 为蓝色`);
-                    }
-                }
-                
-                // 添加蓝色边框
-                this.addHighlightBorder(originalTileNode, new Color(0, 150, 255, 255));
-                
-                // 缩放效果
-                originalTileNode.setScale(1.15, 1.15, 1.0);
+                // 使用简洁的高亮效果：浅蓝色背景 + 缩放
+                this.setTileHighlight(originalTileNode, new Color(200, 230, 255, 255), 1.15);
+                console.log(`高亮原始拖动麻将 (${originalTilePos.row}, ${originalTilePos.col}) 为蓝色`);
                 
                 this.highlightedTiles.push(originalTileNode);
             } catch (error) {
@@ -1945,22 +1788,9 @@ export class GameManager extends Component {
             const partnerNode = this.tileNodes[partnerRow][partnerCol];
             if (partnerNode && partnerNode.isValid) {
                 try {
-                    // 设置Label颜色为黄色
-                    const labelNode = partnerNode.getChildByName('Label');
-                    if (labelNode) {
-                        const label = labelNode.getComponent(Label);
-                        if (label) {
-                            (labelNode as any).originalColor = label.color.clone();
-                            label.color = new Color(255, 255, 0, 255); // 黄色
-                            console.log(`高亮消除伙伴 (${partnerRow}, ${partnerCol}) 为黄色`);
-                        }
-                    }
-                    
-                    // 添加黄色边框
-                    this.addHighlightBorder(partnerNode, new Color(255, 255, 0, 255));
-                    
-                    // 缩放效果
-                    partnerNode.setScale(1.15, 1.15, 1.0);
+                    // 使用简洁的高亮效果：浅黄色背景 + 缩放
+                    this.setTileHighlight(partnerNode, new Color(255, 255, 200, 255), 1.15);
+                    console.log(`高亮消除伙伴 (${partnerRow}, ${partnerCol}) 为黄色`);
                     
                     this.highlightedTiles.push(partnerNode);
                 } catch (error) {
