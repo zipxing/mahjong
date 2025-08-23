@@ -1,49 +1,82 @@
+/**
+ * 麻将无双游戏 - Cocos Creator版本
+ * 
+ * 这是一个从Web版本移植到Cocos Creator的麻将消除游戏
+ * 
+ * 主要特性：
+ * - 8x8棋盘，8种不同的麻将类型
+ * - 点击选择与智能消除系统
+ * - 拖拽移动与推动效果
+ * - 移动失败自动回退
+ * - 丰富的视觉反馈（高亮、缩放、边框、动画）
+ * - 完整的触摸事件处理
+ * - 坐标系统转换（屏幕坐标 ↔ 网格坐标）
+ * 
+ * 技术要点：
+ * - 使用Graphics组件绘制高亮边框
+ * - 使用Tween系统实现各种动画效果
+ * - 完善的错误处理和安全检查
+ * - 智能的拖拽组选择算法（推动逻辑）
+ * - 基于移动历史的回退系统
+ * 
+ * @author AI Assistant
+ * @version 1.0
+ * @date 2024
+ */
+
 import { _decorator, Component, Node, Vec3, Color, Label, Sprite, UITransform, input, Input, EventTouch, Vec2, tween, UIOpacity, Graphics } from 'cc';
 const { ccclass, property } = _decorator;
 
 /**
- * 麻将连连看游戏管理器
- * 简化版本，专注核心功能
+ * 麻将无双游戏管理器
+ * 
+ * 核心功能：
+ * - 8x8棋盘生成与渲染
+ * - 点击选择与智能消除
+ * - 拖拽移动与组合推动
+ * - 移动回退与状态管理
+ * - 高亮显示与视觉反馈
  */
 @ccclass('GameManager')
 export class GameManager extends Component {
     
+    // ==================== 组件引用 ====================
     @property(Node)
-    gameBoard: Node = null!;
+    gameBoard: Node = null!;  // 游戏棋盘根节点
     
-    // 游戏配置
-    private boardSize: number = 8;  // 8x8棋盘，完整版本
+    // ==================== 游戏配置 ====================
+    private boardSize: number = 8;  // 棋盘大小：8x8网格
     private tileTypes: string[] = [
         '🀄', '🀅', '🀆', '🀇',  // 中、发、白、一万
         '🀈', '🀉', '🀊', '🀋'   // 二万、三万、四万、五万
-    ];  // 8种麻将类型
-    private tileSize: number = 70;  // 适当缩小以适应8x8
-    private tileGap: number = 8;    // 调整间距
+    ];  // 8种不同的麻将类型
+    private tileSize: number = 70;   // 单个麻将块的尺寸（像素）
+    private tileGap: number = 8;     // 麻将块之间的间距（像素）
     
-    // 游戏状态
-    private board: (TileData | null)[][] = [];
-    private tileNodes: (Node | null)[][] = [];
-    private selectedTile: {row: number, col: number, node: Node} | null = null;
-    private score: number = 0;
+    // ==================== 游戏状态 ====================
+    private board: (TileData | null)[][] = [];                           // 游戏逻辑数据矩阵
+    private tileNodes: (Node | null)[][] = [];                          // 麻将显示节点矩阵
+    private selectedTile: {row: number, col: number, node: Node} | null = null;  // 当前选中的麻将
+    private score: number = 0;                                           // 当前游戏得分
     
-    // 高亮状态
-    private highlightedTiles: Node[] = [];
+    // ==================== 高亮显示 ====================
+    private highlightedTiles: Node[] = [];  // 当前高亮显示的麻将节点列表
     
-    // 拖拽相关状态
-    private isDragging: boolean = false;
-    private dragStartPos: {row: number, col: number, worldPos: Vec3} | null = null;
-    private dragEndPos: {x: number, y: number} | null = null;
-    private dragGroup: {row: number, col: number}[] = [];
-    private dragShadows: Node[] = [];
-    private dragDirection: 'horizontal' | 'vertical' | null = null;
+    // ==================== 拖拽系统 ====================
+    private isDragging: boolean = false;                                // 是否正在进行拖拽操作
+    private dragStartPos: {row: number, col: number, worldPos: Vec3} | null = null;  // 拖拽起始位置信息
+    private dragEndPos: {x: number, y: number} | null = null;          // 拖拽结束的屏幕坐标
+    private dragGroup: {row: number, col: number}[] = [];              // 参与拖拽的麻将组（推动效果）
+    private dragShadows: Node[] = [];                                   // 拖拽时显示的半透明虚影节点
+    private dragDirection: 'horizontal' | 'vertical' | null = null;    // 拖拽的主要方向
     
-    // 移动历史记录（用于回退）
+    // ==================== 移动历史与智能回退 ====================
     private lastMoveRecord: {
-        oldPositions: {row: number, col: number}[],
-        newPositions: {row: number, col: number}[],
-        tileData: (TileData | null)[],
-        tileNodes: (Node | null)[],
-        originalDragPosition: {row: number, col: number} | null  // 保存原始拖动位置
+        oldPositions: {row: number, col: number}[],      // 移动前的所有位置
+        newPositions: {row: number, col: number}[],      // 移动后的所有位置
+        tileData: (TileData | null)[],                   // 移动的麻将数据备份
+        tileNodes: (Node | null)[],                      // 移动的麻将节点备份
+        originalDragPosition: {row: number, col: number} | null  // 最初被拖拽的麻将位置（用于智能消除判断）
     } | null = null;
     
     onLoad() {
@@ -52,7 +85,15 @@ export class GameManager extends Component {
     }
     
     /**
-     * 添加高亮边框 - 使用Graphics绘制
+     * 添加高亮边框
+     * 
+     * 功能：
+     * - 使用Graphics组件绘制矩形边框
+     * - 支持自定义边框颜色
+     * - 避免重复创建边框（检查已存在的边框）
+     * 
+     * @param tileNode 目标麻将节点
+     * @param borderColor 边框颜色
      */
     private addHighlightBorder(tileNode: Node, borderColor: Color) {
         // 检查是否已经有边框
@@ -91,6 +132,12 @@ export class GameManager extends Component {
     
     /**
      * 移除高亮边框
+     * 
+     * 功能：
+     * - 查找并销毁麻将节点的边框子节点
+     * - 包含安全检查防止空指针异常
+     * 
+     * @param tileNode 目标麻将节点
      */
     private removeHighlightBorder(tileNode: Node) {
         if (!tileNode || !tileNode.isValid) {
@@ -167,6 +214,12 @@ export class GameManager extends Component {
     
     /**
      * 初始化游戏
+     * 
+     * 功能：
+     * - 生成8x8游戏棋盘数据
+     * - 创建麻将显示节点并渲染到界面
+     * - 重置所有游戏状态
+     * - 注册触摸事件监听器
      */
     private init() {
         console.log('开始初始化游戏...');
@@ -323,6 +376,16 @@ export class GameManager extends Component {
     
     /**
      * 创建麻将节点
+     * 
+     * 功能：
+     * - 创建包含UITransform、Sprite、Label组件的麻将节点
+     * - 设置麻将的位置、大小、颜色和文本
+     * - 存储网格坐标信息到节点属性中
+     * 
+     * @param tileData 麻将数据
+     * @param row 行坐标
+     * @param col 列坐标
+     * @returns 创建的麻将节点
      */
     private createTileNode(tileData: TileData, row: number, col: number): Node {
         const tileNode = new Node(`Tile_${row}_${col}`);
@@ -377,7 +440,13 @@ export class GameManager extends Component {
     }
     
     /**
-     * 触摸开始事件处理 - 支持点击和拖拽
+     * 触摸开始事件处理
+     * 
+     * 功能：
+     * - 将屏幕坐标转换为棋盘网格坐标
+     * - 检查触摸位置是否有有效麻将
+     * - 初始化拖拽状态和拖拽组
+     * - 为后续的拖拽或点击操作做准备
      */
     private onTouchStart(event: EventTouch) {
         const touchPos = event.getUILocation();
@@ -404,7 +473,13 @@ export class GameManager extends Component {
     }
     
     /**
-     * 触摸移动事件处理 - 拖拽过程
+     * 触摸移动事件处理
+     * 
+     * 功能：
+     * - 计算拖拽距离和方向（水平/垂直）
+     * - 根据拖拽方向确定拖拽组（推动效果）
+     * - 创建和更新拖拽虚影的位置
+     * - 实现轴向约束（水平拖拽时固定Y轴，垂直拖拽时固定X轴）
      */
     private onTouchMove(event: EventTouch) {
         if (!this.dragStartPos) return;
@@ -467,7 +542,13 @@ export class GameManager extends Component {
     }
     
     /**
-     * 触摸结束事件处理 - 拖拽结束
+     * 触摸结束事件处理
+     * 
+     * 功能：
+     * - 判断是点击还是拖拽操作
+     * - 点击：执行麻将选择和消除逻辑
+     * - 拖拽：计算目标位置并执行移动
+     * - 清理拖拽状态和虚影节点
      */
     private onTouchEnd(event: EventTouch) {
         console.log('=== 拖动结束 ===');
@@ -530,9 +611,17 @@ export class GameManager extends Component {
     }
     
     /**
-     * 坐标转换 - 考虑Web和Cocos Creator坐标系差异
-     * Web: 原点左上角，Y向下为正
-     * Cocos: 原点中心，Y向上为正
+     * 将屏幕触摸坐标转换为棋盘网格坐标
+     * 
+     * 坐标系统转换：
+     * - 屏幕坐标 → GameBoard本地坐标
+     * - 本地坐标 → 相对于棋盘左上角的偏移
+     * - 偏移量 → 网格行列坐标
+     * 
+     * 注意：Web原点左上角Y向下，Cocos原点中心Y向上
+     * 
+     * @param touchPos 屏幕触摸坐标
+     * @returns 网格坐标 {row, col} 或 null（如果超出边界）
      */
     private getGridPositionFromTouch(touchPos: Vec2): {row: number, col: number} | null {
         console.log('--- 坐标转换开始（以棋盘左上角为原点）---');
@@ -757,6 +846,14 @@ export class GameManager extends Component {
     
     /**
      * 高亮选中的麻将
+     * 
+     * 功能：
+     * - 将选中麻将显示为蓝色
+     * - 添加蓝色边框和缩放效果
+     * - 同时修改Label和Sprite的颜色
+     * - 将节点添加到高亮列表中
+     * 
+     * @param tileNode 选中的麻将节点
      */
     private highlightSelectedTile(tileNode: Node) {
         console.log('=== 开始高亮选中麻将 ===');
@@ -861,7 +958,16 @@ export class GameManager extends Component {
     }
     
     /**
-     * 高亮可消除的麻将 - 参考web版本实现
+     * 高亮可消除的麻将
+     * 
+     * 功能：
+     * - 查找与指定位置麻将可以消除的所有麻将
+     * - 将可消除的麻将显示为黄色
+     * - 添加黄色边框和缩放效果
+     * - 清除之前的高亮状态
+     * 
+     * @param row 指定麻将的行
+     * @param col 指定麻将的列
      */
     private highlightEliminable(row: number, col: number) {
         this.clearAllHighlights();
@@ -917,6 +1023,12 @@ export class GameManager extends Component {
     
     /**
      * 清除所有高亮
+     * 
+     * 功能：
+     * - 恢复所有高亮麻将的原始颜色和缩放
+     * - 移除所有边框效果
+     * - 清空高亮节点列表
+     * - 包含完整的安全检查
      */
     private clearAllHighlights() {
         console.log(`清除 ${this.highlightedTiles.length} 个高亮麻将`);
@@ -972,7 +1084,17 @@ export class GameManager extends Component {
     }
     
     /**
-     * 检查两个麻将是否可以消除 - 简化版本
+     * 检查两个麻将是否可以消除
+     * 
+     * 消除规则：
+     * 1. 两个麻将必须是相同类型
+     * 2. 两个麻将必须相邻（上下左右）或在同一直线上且中间无障碍
+     * 
+     * @param r1 第一个麻将的行
+     * @param c1 第一个麻将的列
+     * @param r2 第二个麻将的行
+     * @param c2 第二个麻将的列
+     * @returns 是否可以消除
      */
     private canEliminate(r1: number, c1: number, r2: number, c2: number): boolean {
         console.log(`--- 消除检查: (${r1},${c1}) vs (${r2},${c2}) ---`);
@@ -1044,6 +1166,17 @@ export class GameManager extends Component {
     
     /**
      * 消除一对麻将
+     * 
+     * 功能：
+     * - 播放消除动画（淡出效果）
+     * - 从游戏数据和显示中移除麻将
+     * - 更新游戏得分
+     * - 检查游戏胜利条件
+     * 
+     * @param row1 第一个麻将的行
+     * @param col1 第一个麻将的列
+     * @param row2 第二个麻将的行
+     * @param col2 第二个麻将的列
      */
     private eliminatePair(row1: number, col1: number, row2: number, col2: number) {
         console.log(`消除麻将对: (${row1}, ${col1}) 和 (${row2}, ${col2})`);
@@ -1090,7 +1223,13 @@ export class GameManager extends Component {
     }
     
     /**
-     * 检查胜利条件
+     * 检查游戏胜利条件
+     * 
+     * 功能：
+     * - 检查棋盘上是否还有剩余麻将
+     * - 如果没有剩余麻将，显示胜利消息
+     * 
+     * @returns 是否获胜
      */
     private checkWinCondition() {
         const hasRemainingTiles = this.board.some(row => row.some(tile => tile !== null));
@@ -1104,6 +1243,13 @@ export class GameManager extends Component {
     
     /**
      * 重新开始游戏
+     * 
+     * 功能：
+     * - 清除当前选择状态和拖拽状态
+     * - 重置游戏得分
+     * - 重新初始化游戏棋盘
+     * 
+     * 注意：这是一个公共方法，可以从外部调用
      */
     public restart() {
         console.log('重新开始游戏');
@@ -1135,12 +1281,18 @@ export class GameManager extends Component {
     }
     
     /**
-     * 根据具体拖拽方向找到拖动组
-     * 推动逻辑（统一的推动效果）：
-     * - 往左拖：选中麻将推动其左边的连续麻将一起向左移动
-     * - 往右拖：选中麻将推动其右边的连续麻将一起向右移动  
-     * - 往上拖：选中麻将推动其下边的连续麻将一起向上移动
-     * - 往下拖：选中麻将推动其上边的连续麻将一起向下移动
+     * 根据拖拽方向确定拖拽组（推动逻辑）
+     * 
+     * 推动效果说明：
+     * - 向左拖拽：选中麻将及其左侧连续麻将一起向左移动
+     * - 向右拖拽：选中麻将及其右侧连续麻将一起向右移动  
+     * - 向上拖拽：选中麻将及其下方连续麻将一起向上移动
+     * - 向下拖拽：选中麻将及其上方连续麻将一起向下移动
+     * 
+     * @param startRow 起始行
+     * @param startCol 起始列
+     * @param direction 拖拽方向
+     * @returns 参与拖拽的麻将位置数组
      */
     private findDragGroupForSpecificDirection(startRow: number, startCol: number, direction: 'left' | 'right' | 'up' | 'down'): {row: number, col: number}[] {
         console.log(`寻找拖动组，具体方向: ${direction}, 起始位置: (${startRow}, ${startCol})`);
@@ -1202,7 +1354,14 @@ export class GameManager extends Component {
     }
     
     /**
-     * 创建拖动组的虚影
+     * 创建拖拽虚影
+     * 
+     * 功能：
+     * - 为拖拽组中的每个麻将创建半透明虚影
+     * - 虚影跟随鼠标移动，但受轴向约束
+     * - 水平拖拽时虚影Y坐标固定，垂直拖拽时虚影X坐标固定
+     * 
+     * @param currentPos 当前鼠标位置
      */
     private createDragGroupShadows(currentPos: Vec3) {
         this.clearDragShadows(); // 清除现有虚影
@@ -1303,6 +1462,10 @@ export class GameManager extends Component {
     
     /**
      * 清除拖拽虚影
+     * 
+     * 功能：
+     * - 销毁所有虚影节点并释放内存
+     * - 清空虚影节点数组
      */
     private clearDragShadows() {
         this.dragShadows.forEach(shadow => shadow.destroy());
@@ -1310,7 +1473,18 @@ export class GameManager extends Component {
     }
     
     /**
-     * 处理拖拽结束 - 详细调试版本
+     * 处理拖拽结束
+     * 
+     * 功能：
+     * - 计算拖拽组的目标位置
+     * - 验证移动的有效性（边界检查、空位检查）
+     * - 执行麻将移动或显示移动失败反馈
+     * - 移动成功后检查消除机会
+     * 
+     * @param startRow 拖拽起始行
+     * @param startCol 拖拽起始列
+     * @param endRow 拖拽结束行
+     * @param endCol 拖拽结束列
      */
     private handleDragEnd(startRow: number, startCol: number, endRow: number, endCol: number) {
         console.log('=== 处理拖拽结束 ===');
@@ -1551,7 +1725,13 @@ export class GameManager extends Component {
     
     /**
      * 检查移动后的消除机会并执行智能消除
-     * 只检查最初拖动的那个麻将的消除机会
+     * 
+     * 智能消除逻辑：
+     * 1. 优先检查最初拖动的麻将的消除机会
+     * 2. 如果有唯一消除选项，自动执行消除
+     * 3. 如果有多个消除选项，高亮显示等待用户选择
+     * 4. 如果没有消除机会，自动回退移动
+     * 5. 如果无法确定原始拖动位置，检查所有移动麻将的消除机会
      */
     private checkEliminationAfterMove() {
         console.log('检查移动后是否有消除机会');
@@ -1928,6 +2108,12 @@ export class GameManager extends Component {
     
     /**
      * 回退上次移动
+     * 
+     * 功能：
+     * - 将所有移动的麻将恢复到移动前的位置
+     * - 恢复游戏数据矩阵和节点矩阵
+     * - 播放回退闪烁动画提供视觉反馈
+     * - 包含完整的安全检查防止空指针异常
      */
     private revertLastMove() {
         console.log('=== 开始回退上次移动 ===');
