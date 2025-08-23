@@ -349,6 +349,27 @@ h1 {
     }
 }
 
+/* 拖拽虚影相关样式 */
+.drag-shadow {
+    position: fixed;
+    pointer-events: none;
+    z-index: 2000;
+    opacity: 0.6;
+    transform: scale(1.1);
+    border: 2px dashed #4299e1;
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.8), rgba(241, 245, 249, 0.8));
+    border-radius: 10px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-weight: bold;
+    user-select: none;
+    transition: all 0.1s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+
+
 @media (max-width: 500px) {
     .game-board {
         width: 320px;
@@ -359,5 +380,9 @@ h1 {
         width: 35px;
         height: 35px;
         font-size: 16px;
+    }
+    
+    .drag-shadow {
+        transform: scale(1.05);
     }
 }
