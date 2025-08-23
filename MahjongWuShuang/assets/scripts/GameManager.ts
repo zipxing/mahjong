@@ -1360,26 +1360,121 @@ export class GameManager extends Component {
     
     /**
      * 检查是否可以移动
+     * 
+     * 功能：
+     * - 检查拖动组中每个麻将的移动路径是否有障碍
+     * - 确保移动路径上没有其他麻将阻挡
+     * - 检查目标位置是否在棋盘范围内
+     * 
+     * @param startRow 起始行
+     * @param startCol 起始列
+     * @param direction 移动方向
+     * @param steps 移动步数
+     * @returns 是否可以移动
      */
     private checkIfCanMove(startRow: number, startCol: number, direction: string, steps: number): boolean {
         console.log(`检查移动可行性: (${startRow}, ${startCol}) ${direction} ${steps}步`);
+        console.log('当前拖动组:', this.dragGroup);
         
-        // 简化版本：暂时返回true，允许所有移动
-        // 后续可以添加更复杂的移动规则检查
+        // 检查拖动组中每个麻将的移动路径
+        for (const tile of this.dragGroup) {
+            if (!this.checkSingleTileMovePath(tile.row, tile.col, direction, steps)) {
+                console.log(`麻将 (${tile.row}, ${tile.col}) 的移动路径被阻挡`);
+                return false;
+            }
+        }
+        
+        // 检查移动后的位置冲突
+        const newPositions = this.calculateNewPositions(this.dragGroup, direction, steps);
+        if (this.checkPositionConflicts(newPositions)) {
+            console.log('移动后位置有冲突');
+            return false;
+        }
+        
+        console.log('✅ 移动可行性检查通过 - 所有路径畅通');
         return true;
     }
     
     /**
-     * 执行麻将移动
+     * 检查单个麻将的移动路径是否畅通
+     * 
+     * @param startRow 起始行
+     * @param startCol 起始列
+     * @param direction 移动方向
+     * @param steps 移动步数
+     * @returns 路径是否畅通
      */
-    private executeTileMove(startRow: number, startCol: number, direction: string, steps: number) {
-        console.log(`执行移动: (${startRow}, ${startCol}) ${direction} ${steps}步`);
-        console.log('当前拖动组:', this.dragGroup);
+    private checkSingleTileMovePath(startRow: number, startCol: number, direction: string, steps: number): boolean {
+        console.log(`检查单个麻将路径: (${startRow}, ${startCol}) ${direction} ${steps}步`);
         
-        // 计算新位置
-        let newPositions: {row: number, col: number}[] = [];
+        // 计算移动的增量
+        let deltaRow = 0;
+        let deltaCol = 0;
         
-        this.dragGroup.forEach(tile => {
+        switch (direction) {
+            case 'left':
+                deltaCol = -1;
+                break;
+            case 'right':
+                deltaCol = 1;
+                break;
+            case 'up':
+                deltaRow = -1;
+                break;
+            case 'down':
+                deltaRow = 1;
+                break;
+            default:
+                console.error('未知的移动方向:', direction);
+                return false;
+        }
+        
+        // 检查路径上的每一步
+        for (let step = 1; step <= steps; step++) {
+            const checkRow = startRow + deltaRow * step;
+            const checkCol = startCol + deltaCol * step;
+            
+            console.log(`  检查路径点 ${step}/${steps}: (${checkRow}, ${checkCol})`);
+            
+            // 检查是否超出棋盘边界
+            if (checkRow < 0 || checkRow >= this.boardSize || checkCol < 0 || checkCol >= this.boardSize) {
+                console.log(`  ❌ 路径超出边界: (${checkRow}, ${checkCol})`);
+                return false;
+            }
+            
+            // 检查该位置是否有障碍物（不属于当前拖动组的麻将）
+            if (this.board[checkRow][checkCol] !== null) {
+                // 检查这个位置的麻将是否属于当前拖动组
+                const isInDragGroup = this.dragGroup.some(tile => tile.row === checkRow && tile.col === checkCol);
+                
+                if (!isInDragGroup) {
+                    const obstacleTile = this.board[checkRow][checkCol];
+                    console.log(`  ❌ 路径被阻挡: (${checkRow}, ${checkCol}) 有其他麻将 ${obstacleTile?.symbol}`);
+                    return false;
+                } else {
+                    console.log(`  ✅ 路径点是拖动组成员: (${checkRow}, ${checkCol})`);
+                }
+            } else {
+                console.log(`  ✅ 路径点空闲: (${checkRow}, ${checkCol})`);
+            }
+        }
+        
+        console.log(`路径畅通: (${startRow}, ${startCol}) → (${startRow + deltaRow * steps}, ${startCol + deltaCol * steps})`);
+        return true;
+    }
+    
+    /**
+     * 计算拖动组移动后的新位置
+     * 
+     * @param dragGroup 拖动组
+     * @param direction 移动方向
+     * @param steps 移动步数
+     * @returns 新位置数组
+     */
+    private calculateNewPositions(dragGroup: {row: number, col: number}[], direction: string, steps: number): {row: number, col: number}[] {
+        const newPositions: {row: number, col: number}[] = [];
+        
+        dragGroup.forEach(tile => {
             let newRow = tile.row;
             let newCol = tile.col;
             
@@ -1401,6 +1496,18 @@ export class GameManager extends Component {
             newPositions.push({ row: newRow, col: newCol });
         });
         
+        return newPositions;
+    }
+    
+    /**
+     * 执行麻将移动
+     */
+    private executeTileMove(startRow: number, startCol: number, direction: string, steps: number) {
+        console.log(`执行移动: (${startRow}, ${startCol}) ${direction} ${steps}步`);
+        console.log('当前拖动组:', this.dragGroup);
+        
+        // 使用统一的方法计算新位置
+        const newPositions = this.calculateNewPositions(this.dragGroup, direction, steps);
         console.log('计算的新位置:', newPositions);
         
         // 检查新位置是否有冲突
