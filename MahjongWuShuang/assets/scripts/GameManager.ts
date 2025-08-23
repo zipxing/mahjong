@@ -24,7 +24,7 @@
  * @date 2024
  */
 
-import { _decorator, Component, Node, Vec3, Color, Label, Sprite, UITransform, input, Input, EventTouch, Vec2, tween, UIOpacity } from 'cc';
+import { _decorator, Component, Node, Vec3, Color, Label, Sprite, UITransform, input, Input, EventTouch, Vec2, tween, UIOpacity, Graphics } from 'cc';
 const { ccclass, property } = _decorator;
 
 /**
@@ -43,6 +43,8 @@ export class GameManager extends Component {
     // ==================== 组件引用 ====================
     @property(Node)
     gameBoard: Node = null!;  // 游戏棋盘根节点
+    
+    private gridLinesNode: Node = null!;  // 网格线节点
     
     // ==================== 游戏配置 ====================
     private boardSize: number = 8;  // 棋盘大小：8x8网格
@@ -194,6 +196,7 @@ export class GameManager extends Component {
         this.createBoard();
         this.generateSimplePairs();
         this.renderBoard();
+        this.createGridLines();  // 绘制网格线
         
         console.log('游戏初始化完成！');
         
@@ -295,6 +298,9 @@ export class GameManager extends Component {
         // 清空现有节点
         this.gameBoard.removeAllChildren();
         
+        // 重置网格线节点引用
+        this.gridLinesNode = null!;
+        
         // 计算起始位置
         const boardWidth = this.boardSize * this.tileSize + (this.boardSize - 1) * this.tileGap;
         const boardHeight = this.boardSize * this.tileSize + (this.boardSize - 1) * this.tileGap;
@@ -389,6 +395,92 @@ export class GameManager extends Component {
         (tileNode as any).gridCol = col;
         
         return tileNode;
+    }
+    
+    /**
+     * 创建并绘制棋盘网格线
+     * 
+     * 功能：
+     * - 创建半透明的网格线让行列更清晰
+     * - 使用Graphics组件绘制水平和垂直线条
+     * - 网格线位于麻将块下方，不影响交互
+     */
+    private createGridLines() {
+        console.log('开始绘制棋盘网格线...');
+        
+        // 创建网格线节点
+        this.gridLinesNode = new Node('GridLines');
+        const transform = this.gridLinesNode.addComponent(UITransform);
+        
+        // 计算棋盘总尺寸
+        const totalWidth = this.boardSize * this.tileSize + (this.boardSize - 1) * this.tileGap;
+        const totalHeight = this.boardSize * this.tileSize + (this.boardSize - 1) * this.tileGap;
+        
+        transform.setContentSize(totalWidth, totalHeight);
+        
+        // 添加Graphics组件用于绘制
+        const graphics = this.gridLinesNode.addComponent(Graphics);
+        
+        // 清除之前的绘制内容
+        graphics.clear();
+        
+        // 设置线条样式 - 半透明白色，清晰明显
+        graphics.lineWidth = 1;
+        graphics.strokeColor = new Color(255, 255, 255, 180); // 半透明白色，清晰明显的可见度
+        
+        // 计算绘制坐标 - 使用相对于麻将块的坐标系
+        const boardWidth = this.boardSize * this.tileSize + (this.boardSize - 1) * this.tileGap;
+        const boardHeight = this.boardSize * this.tileSize + (this.boardSize - 1) * this.tileGap;
+        const tileStartX = -boardWidth / 2 + this.tileSize / 2;
+        const tileStartY = boardHeight / 2 - this.tileSize / 2;
+        
+        // 清除之前的绘制
+        graphics.clear();
+        
+        // 绘制垂直线（列分隔线）- 在麻将块之间的间隙中
+        for (let col = 1; col < this.boardSize; col++) {
+            // 垂直线应该在第col-1列和第col列麻将之间
+            // 第col-1列麻将的右边缘 + 间隙的一半
+            const x = (col - 1) * (this.tileSize + this.tileGap) + this.tileSize / 2 + this.tileGap / 2;
+            const startY = this.tileSize / 2;  // 从第一行麻将的上边缘开始
+            const endY = startY - this.boardSize * (this.tileSize + this.tileGap) + this.tileGap; // 到最后一行麻将的下边缘
+            
+            graphics.moveTo(x, startY);
+            graphics.lineTo(x, endY);
+            graphics.stroke();
+        }
+        
+        // 绘制水平线（行分隔线）- 在麻将块之间的间隙中
+        for (let row = 1; row < this.boardSize; row++) {
+            // 使用与垂直线相同的逻辑，但应用到Y轴
+            // 垂直线: x = (col - 1) * (tileSize + tileGap) + tileSize / 2 + tileGap / 2
+            // 水平线: y = tileSize / 2 - (row * (tileSize + tileGap) - tileGap / 2)
+            const y = this.tileSize / 2 - (row * (this.tileSize + this.tileGap) - this.tileGap / 2);
+            const startX = -this.tileSize / 2; // 从第一列麻将的左边缘开始
+            const endX = startX + this.boardSize * (this.tileSize + this.tileGap) - this.tileGap; // 到最后一列麻将的右边缘
+            
+            graphics.moveTo(startX, y);
+            graphics.lineTo(endX, y);
+            graphics.stroke();
+        }
+        
+        // 绘制外边框
+        const rectX = -this.tileSize / 2;
+        const rectY = this.tileSize / 2;
+        const rectWidth = this.boardSize * (this.tileSize + this.tileGap) - this.tileGap;
+        const rectHeight = -(this.boardSize * (this.tileSize + this.tileGap) - this.tileGap);
+        
+        graphics.rect(rectX, rectY, rectWidth, rectHeight);
+        graphics.stroke();
+        
+        // 设置网格线节点位置，Z轴设为0确保可见
+        this.gridLinesNode.setPosition(tileStartX, tileStartY, 0);
+        
+        // 添加到棋盘节点
+        this.gameBoard.addChild(this.gridLinesNode);
+        
+        console.log('✅ 网格线绘制完成，节点已添加到棋盘');
+        console.log('网格线节点信息:', this.gridLinesNode.name, this.gridLinesNode.position);
     }
     
     /**
@@ -987,7 +1079,8 @@ export class GameManager extends Component {
      * 消除一对麻将
      * 
      * 功能：
-     * - 播放消除动画（淡出效果）
+     * - 播放消除动画（缩放 + 旋转 + 淡出特效）
+     * - 两个麻将块分别向不同方向旋转（增加视觉趣味性）
      * - 从游戏数据和显示中移除麻将
      * - 更新游戏得分
      * - 检查游戏胜利条件
@@ -1004,15 +1097,27 @@ export class GameManager extends Component {
         const tile2Node = this.tileNodes[row2][col2];
         
         if (tile1Node && tile2Node) {
-            // 消除动画
-            const animateElimination = (node: Node) => {
+            // 消除动画 - 包含旋转特效
+            const animateElimination = (node: Node, rotationDirection: number = 1) => {
+                console.log(`  🌀 开始旋转动画: ${rotationDirection > 0 ? '顺时针' : '逆时针'}`);
+                
                 // 添加UIOpacity组件用于透明度动画
                 const uiOpacity = node.addComponent(UIOpacity);
                 uiOpacity.opacity = 255;
                 
+                // 获取当前旋转角度
+                const currentRotation = node.eulerAngles.z;
+                
+                // 缩放 + 旋转动画
                 tween(node)
-                    .to(0.2, { scale: new Vec3(this.ANIMATION_SCALE, this.ANIMATION_SCALE, 1) })
-                    .to(0.2, { scale: new Vec3(0, 0, 0) })
+                    .to(0.15, { 
+                        scale: new Vec3(this.ANIMATION_SCALE, this.ANIMATION_SCALE, 1),
+                        eulerAngles: new Vec3(0, 0, currentRotation + 180 * rotationDirection)
+                    })
+                    .to(0.25, { 
+                        scale: new Vec3(0, 0, 0),
+                        eulerAngles: new Vec3(0, 0, currentRotation + 360 * rotationDirection)
+                    })
                     .call(() => {
                         node.destroy();
                     })
@@ -1024,8 +1129,10 @@ export class GameManager extends Component {
                     .start();
             };
             
-            animateElimination(tile1Node);
-            animateElimination(tile2Node);
+            // 让两个麻将块向不同方向旋转，增加视觉趣味性
+            console.log('🎭 播放消除动画 - 旋转特效');
+            animateElimination(tile1Node, 1);   // 顺时针旋转
+            animateElimination(tile2Node, -1);  // 逆时针旋转
         }
         
         // 更新数据
