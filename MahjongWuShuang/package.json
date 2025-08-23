@@ -1,0 +1,17 @@
+{
+  "name": "MahjongWuShuang",
+  "displayName": "麻将连连看",
+  "uuid": "a9b784e2-1726-455c-a80e-aefa6d7a6bb7",
+  "version": "1.0.0",
+  "description": "基于Cocos Creator开发的麻将连连看游戏，支持拖拽移动和智能虚影系统",
+  "author": "Game Developer",
+  "creator": {
+    "version": "3.8.7"
+  },
+  "scripts": {
+    "build": "cocos build",
+    "preview": "cocos preview"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
