@@ -123,7 +123,7 @@ export class GameManager extends Component {
         console.log('游戏状态已重置');
         
         this.boardManager.generateSimplePairs(this.tileManager);
-        this.renderBoard();
+        this.boardManager.renderBoard(this.tileManager);
         
         console.log('游戏初始化完成！');
     }
@@ -144,53 +144,6 @@ export class GameManager extends Component {
         this.shadowPool.init(this.mahjongAtlas, this.node.parent || this.node);
         
         console.log('✅ 模块管理器初始化完成');
-    }
-    
-    /**
-     * 渲染棋盘
-     */
-    private renderBoard() {
-        console.log('开始渲染棋盘...');
-        
-        // 清空现有节点
-        this.gameBoard.removeAllChildren();
-        
-        // 计算起始位置
-        const boardSize = this.boardManager.getBoardSize();
-        const tileSize = this.boardManager.getTileSize();
-        const tileGap = this.boardManager.getTileGap();
-        const boardWidth = boardSize * tileSize + (boardSize - 1) * tileGap;
-        const boardHeight = boardSize * tileSize + (boardSize - 1) * tileGap;
-        const startX = -boardWidth / 2 + tileSize / 2;
-        const startY = boardHeight / 2 - tileSize / 2;
-        
-        let tilesCreated = 0;
-        
-        // 创建麻将节点
-        for (let row = 0; row < boardSize; row++) {
-            for (let col = 0; col < boardSize; col++) {
-                const tile = this.boardManager.getTileData(row, col);
-                if (tile) {
-                    // 使用TileManager创建麻将节点
-                    const tileNode = this.tileManager.createTileNode(tile, this.gameBoard);
-                    
-                    // 设置位置
-                    const x = startX + col * (tileSize + tileGap);
-                    const y = startY - row * (tileSize + tileGap);
-                    tileNode.setPosition(x, y, 0);
-                    
-                    // 存储网格坐标到节点
-                    (tileNode as any).gridRow = row;
-                    (tileNode as any).gridCol = col;
-                    
-                    // 直接设置到BoardManager
-                    this.boardManager.setTileNode(row, col, tileNode);
-                    tilesCreated++;
-                }
-            }
-        }
-        
-        console.log(`渲染完成，创建了 ${tilesCreated} 个麻将节点`);
     }
     
     /**

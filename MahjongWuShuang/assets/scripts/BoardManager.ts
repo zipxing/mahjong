@@ -364,6 +364,61 @@ export class BoardManager {
         }
         console.log('=== 棋盘布局结束 ===');
     }
+
+    /**
+     * 渲染棋盘
+     * （从GameManager.renderBoard()迁移）
+     * 
+     * @param tileManager TileManager实例，用于创建麻将节点
+     */
+    renderBoard(tileManager: any): void {
+        console.log('开始渲染棋盘...');
+        
+        if (!this.gameBoardNode) {
+            console.error('GameBoard节点未设置，无法渲染');
+            return;
+        }
+        
+        // 清空现有节点
+        this.gameBoardNode.removeAllChildren();
+        
+        // 计算起始位置
+        const boardSize = this.boardSize;
+        const tileSize = this.tileSize;
+        const tileGap = this.tileGap;
+        const boardWidth = boardSize * tileSize + (boardSize - 1) * tileGap;
+        const boardHeight = boardSize * tileSize + (boardSize - 1) * tileGap;
+        const startX = -boardWidth / 2 + tileSize / 2;
+        const startY = boardHeight / 2 - tileSize / 2;
+        
+        let tilesCreated = 0;
+        
+        // 创建麻将节点
+        for (let row = 0; row < boardSize; row++) {
+            for (let col = 0; col < boardSize; col++) {
+                const tile = this.board[row][col];
+                if (tile) {
+                    // 使用TileManager创建麻将节点
+                    const tileNode = tileManager.createTileNode(tile, this.gameBoardNode);
+                    
+                    // 设置位置
+                    const x = startX + col * (tileSize + tileGap);
+                    const y = startY - row * (tileSize + tileGap);
+                    tileNode.setPosition(x, y, 0);
+                    
+                    // 存储网格坐标到节点
+                    (tileNode as any).gridRow = row;
+                    (tileNode as any).gridCol = col;
+                    
+                    // 设置到tileNodes数组
+                    this.tileNodes[row][col] = tileNode;
+                    tilesCreated++;
+                }
+            }
+        }
+        
+        console.log(`渲染完成，创建了 ${tilesCreated} 个麻将节点`);
+    }
     
     // ==================== Setter方法 ====================
     
