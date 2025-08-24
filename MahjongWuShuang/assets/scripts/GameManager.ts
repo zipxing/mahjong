@@ -1329,7 +1329,7 @@ export class GameManager extends Component {
                 setTimeout(() => {
                     console.log('检查移动后的消除机会');
                     this.checkEliminationAfterMove();
-                }, 10);
+                }, 60);
             } else {
                 console.log('移动不可行，显示失败反馈');
                 // this.showMoveFailedFeedback(startRow, startCol);
