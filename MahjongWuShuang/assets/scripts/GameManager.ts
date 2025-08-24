@@ -540,25 +540,6 @@ export class GameManager extends Component {
     }
     
     /**
-     * 检查游戏胜利条件
-     * 
-     * 功能：
-     * - 检查棋盘上是否还有剩余麻将
-     * - 如果没有剩余麻将，显示胜利消息
-     * 
-     * @returns 是否获胜
-     */
-    private checkWinCondition() {
-        const hasRemainingTiles = this.boardManager.hasRemainingTiles();
-        if (!hasRemainingTiles) {
-            setTimeout(() => {
-                console.log('🎉 恭喜您获得胜利！所有麻将都已消除！');
-                console.log(`最终分数: ${this.score}`);
-            }, 500);
-        }
-    }
-    
-    /**
      * 重新开始游戏
      * 
      * 功能：
@@ -595,79 +576,6 @@ export class GameManager extends Component {
         this.clearDragShadows();
         this.isDragging = false;
         this.dragDirection = null;
-    }
-    
-    /**
-     * 根据拖拽方向确定拖拽组（推动逻辑）
-     * 
-     * 推动效果说明：
-     * - 向左拖拽：选中麻将及其左侧连续麻将一起向左移动
-     * - 向右拖拽：选中麻将及其右侧连续麻将一起向右移动  
-     * - 向上拖拽：选中麻将及其下方连续麻将一起向上移动
-     * - 向下拖拽：选中麻将及其上方连续麻将一起向下移动
-     * 
-     * @param startRow 起始行
-     * @param startCol 起始列
-     * @param direction 拖拽方向
-     * @returns 参与拖拽的麻将位置数组
-     */
-    private findDragGroupForSpecificDirection(startRow: number, startCol: number, direction: 'left' | 'right' | 'up' | 'down'): {row: number, col: number}[] {
-        console.log(`寻找拖动组，具体方向: ${direction}, 起始位置: (${startRow}, ${startCol})`);
-        
-        const group: {row: number, col: number}[] = [{ row: startRow, col: startCol }];
-        
-        switch (direction) {
-            case 'left':
-                // 往左拖拽：推动左边的连续麻将（推动效果）
-                for (let c = startCol - 1; c >= 0; c--) {
-                    if (this.boardManager.getTileData(startRow, c) !== null) {
-                        group.unshift({ row: startRow, col: c });
-                        console.log(`往左拖拽，添加左边麻将: (${startRow}, ${c})`);
-                    } else {
-                        break;
-                    }
-                }
-                break;
-                
-            case 'right':
-                // 往右拖拽：带动右边的连续麻将（推动效果）
-                for (let c = startCol + 1; c < this.boardManager.getBoardSize(); c++) {
-                    if (this.boardManager.getTileData(startRow, c) !== null) {
-                        group.push({ row: startRow, col: c });
-                        console.log(`往右拖拽，添加右边麻将: (${startRow}, ${c})`);
-                    } else {
-                        break;
-                    }
-                }
-                break;
-                
-            case 'up':
-                // 往上拖拽：推动下边的连续麻将向上移动（推动效果）
-                for (let r = startRow + 1; r < this.boardManager.getBoardSize(); r++) {
-                    if (this.boardManager.getTileData(r, startCol) !== null) {
-                        group.push({ row: r, col: startCol });
-                        console.log(`往上拖拽，添加下边麻将: (${r}, ${startCol})`);
-                    } else {
-                        break;
-                    }
-                }
-                break;
-                
-            case 'down':
-                // 往下拖拽：推动上边的连续麻将向下移动（推动效果）
-                for (let r = startRow - 1; r >= 0; r--) {
-                    if (this.boardManager.getTileData(r, startCol) !== null) {
-                        group.unshift({ row: r, col: startCol });
-                        console.log(`往下拖拽，添加上边麻将: (${r}, ${startCol})`);
-                    } else {
-                        break;
-                    }
-                }
-                break;
-        }
-        
-        console.log('找到的拖动组:', group);
-        return group;
     }
     
     /**
@@ -867,109 +775,9 @@ export class GameManager extends Component {
         return true;
     }
     
-    /**
-     * 检查单个麻将的移动路径是否畅通
-     * 
-     * @param startRow 起始行
-     * @param startCol 起始列
-     * @param direction 移动方向
-     * @param steps 移动步数
-     * @returns 路径是否畅通
-     */
-    private checkSingleTileMovePath(startRow: number, startCol: number, direction: string, steps: number): boolean {
-        console.log(`检查单个麻将路径: (${startRow}, ${startCol}) ${direction} ${steps}步`);
-        
-        // 计算移动的增量
-        let deltaRow = 0;
-        let deltaCol = 0;
-        
-        switch (direction) {
-            case 'left':
-                deltaCol = -1;
-                break;
-            case 'right':
-                deltaCol = 1;
-                break;
-            case 'up':
-                deltaRow = -1;
-                break;
-            case 'down':
-                deltaRow = 1;
-                break;
-            default:
-                console.error('未知的移动方向:', direction);
-                return false;
-        }
-        
-        // 检查路径上的每一步
-        for (let step = 1; step <= steps; step++) {
-            const checkRow = startRow + deltaRow * step;
-            const checkCol = startCol + deltaCol * step;
-            
-            console.log(`  检查路径点 ${step}/${steps}: (${checkRow}, ${checkCol})`);
-            
-            // 检查是否超出棋盘边界
-            if (checkRow < 0 || checkRow >= this.boardManager.getBoardSize() || checkCol < 0 || checkCol >= this.boardManager.getBoardSize()) {
-                console.log(`  ❌ 路径超出边界: (${checkRow}, ${checkCol})`);
-                return false;
-            }
-            
-            // 检查该位置是否有障碍物（不属于当前拖动组的麻将）
-            const obstacleTile = this.boardManager.getTileData(checkRow, checkCol);
-            if (obstacleTile !== null) {
-                // 检查这个位置的麻将是否属于当前拖动组
-                const isInDragGroup = this.dragGroup.some(tile => tile.row === checkRow && tile.col === checkCol);
-                
-                if (!isInDragGroup) {
-                    console.log(`  ❌ 路径被阻挡: (${checkRow}, ${checkCol}) 有其他麻将 ${obstacleTile?.symbol}`);
-                    return false;
-                } else {
-                    console.log(`  ✅ 路径点是拖动组成员: (${checkRow}, ${checkCol})`);
-                }
-            } else {
-                console.log(`  ✅ 路径点空闲: (${checkRow}, ${checkCol})`);
-            }
-        }
-        
-        console.log(`路径畅通: (${startRow}, ${startCol}) → (${startRow + deltaRow * steps}, ${startCol + deltaCol * steps})`);
-        return true;
-    }
+
     
-    /**
-     * 计算拖动组移动后的新位置
-     * 
-     * @param dragGroup 拖动组
-     * @param direction 移动方向
-     * @param steps 移动步数
-     * @returns 新位置数组
-     */
-    private calculateNewPositions(dragGroup: {row: number, col: number}[], direction: string, steps: number): {row: number, col: number}[] {
-        const newPositions: {row: number, col: number}[] = [];
-        
-        dragGroup.forEach(tile => {
-            let newRow = tile.row;
-            let newCol = tile.col;
-            
-            switch (direction) {
-                case 'left':
-                    newCol = Math.max(0, tile.col - steps);
-                    break;
-                case 'right':
-                    newCol = Math.min(this.boardManager.getBoardSize() - 1, tile.col + steps);
-                    break;
-                case 'up':
-                    newRow = Math.max(0, tile.row - steps);
-                    break;
-                case 'down':
-                    newRow = Math.min(this.boardManager.getBoardSize() - 1, tile.row + steps);
-                    break;
-            }
-            
-            newPositions.push({ row: newRow, col: newCol });
-        });
-        
-        return newPositions;
-    }
+
     
     /**
      * 执行麻将移动
@@ -994,30 +802,7 @@ export class GameManager extends Component {
         }
     }
     
-    /**
-     * 检查位置冲突
-     */
-    private checkPositionConflicts(newPositions: {row: number, col: number}[]): boolean {
-        for (const pos of newPositions) {
-            // 检查是否超出边界
-            if (pos.row < 0 || pos.row >= this.boardManager.getBoardSize() || pos.col < 0 || pos.col >= this.boardManager.getBoardSize()) {
-                console.log(`位置超出边界: (${pos.row}, ${pos.col})`);
-                return true;
-            }
-            
-            // 检查目标位置是否被其他麻将占用（不在拖动组中的麻将）
-            const existingTile = this.boardManager.getTileData(pos.row, pos.col);
-            if (existingTile) {
-                const isInDragGroup = this.dragGroup.some(tile => tile.row === pos.row && tile.col === pos.col);
-                if (!isInDragGroup) {
-                    console.log(`位置被占用: (${pos.row}, ${pos.col})`);
-                    return true;
-                }
-            }
-        }
-        
-        return false;
-    }
+
     
     /**
      * 执行实际的麻将移动
