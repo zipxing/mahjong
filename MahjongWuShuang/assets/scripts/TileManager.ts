@@ -294,6 +294,73 @@ export class TileManager {
     getHighlightedTiles(): Node[] {
         return [...this.highlightedTiles];
     }
+
+    // ==================== 高亮效果常量 ====================
+    private readonly HIGHLIGHT_SCALE = 1.3;           // 高亮时的缩放比例
+    private readonly ANIMATION_SCALE = 1.5;            // 动画时的最大缩放比例
+
+    /**
+     * 高亮选中的麻将（带动画效果）
+     * （从GameManager.highlightSelectedTile()完全复制）
+     * 
+     * @param tileNode 选中的麻将节点
+     */
+    highlightSelectedTile(tileNode: Node) {
+        console.log('高亮选中麻将:', tileNode.name);
+        
+        this.setTileHighlight(tileNode, 'selected');
+        
+        // 添加选中动画（轻微的弹跳效果）
+        console.log('添加选中动画');
+        tween(tileNode)
+            .to(0.1, { scale: new Vec3(this.ANIMATION_SCALE, this.ANIMATION_SCALE, 1) })
+            .to(0.1, { scale: new Vec3(this.HIGHLIGHT_SCALE, this.HIGHLIGHT_SCALE, 1) })
+            .start();
+            
+        // 注意：不需要再次添加到highlightedTiles，因为setTileHighlight已经处理了
+    }
+
+    /**
+     * 高亮可消除的麻将
+     * （从GameManager.highlightEliminable()完全复制）
+     * 
+     * @param row 指定麻将的行
+     * @param col 指定麻将的列
+     * @param boardManager 棋盘管理器
+     * @param boardSize 棋盘大小
+     * @param canEliminateCallback 消除判断回调函数
+     */
+    highlightEliminable(
+        row: number, 
+        col: number, 
+        boardManager: any, 
+        boardSize: number, 
+        canEliminateCallback: (r1: number, c1: number, r2: number, c2: number) => boolean
+    ) {
+        this.clearAllHighlights();
+        
+        const currentTile = boardManager.getTileData(row, col);
+        if (!currentTile) return;
+        
+        // 遍历所有麻将，找出可消除的
+        for (let r = 0; r < boardSize; r++) {
+            for (let c = 0; c < boardSize; c++) {
+                if (r === row && c === col) continue;
+                
+                if (canEliminateCallback(row, col, r, c)) {
+                    const tileNode = boardManager.getTileNode(r, c);
+                    if (tileNode && tileNode.isValid) {
+                        console.log(`高亮麻将: (${r}, ${c})`);
+                        this.setTileHighlight(tileNode, 'eliminable');
+                        
+                        // 注意：不需要再次添加到highlightedTiles，因为setTileHighlight已经处理了
+                    }
+                }
+            }
+        }
+        
+        console.log(`高亮了 ${this.highlightedTiles.length} 个可消除的麻将`);
+    }
     
     /**
      * 消除一对麻将

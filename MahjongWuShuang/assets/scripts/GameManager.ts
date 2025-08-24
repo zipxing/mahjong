@@ -49,16 +49,15 @@ export class GameManager extends Component {
     // ==================== 游戏配置 ====================
     // ⚠️ 【冗余属性】与子模块重复，保留用于兼容性
     private boardSize: number = 8;  // 棋盘大小：8x8网格
-    private tileTypes: string[] = [
-        '🀄', '🀅', '🀆', '🀇',  // 中、发、白、一万
-        '🀈', '🀉', '🀊', '🀋'   // 二万、三万、四万、五万
-    ];  // 8种不同的麻将类型
-    private tileSize: number = 70;   // 单个麻将块的尺寸（像素）
-    private tileGap: number = 8;     // 麻将块之间的间距（像素）
+    /*
+    // 🚫 【已注释】这些属性已迁移到相应的管理器
+    private tileTypes: string[] = [...];  // 已迁移到 TileManager
+    private tileSize: number = 70;        // 已迁移到 BoardManager  
+    private tileGap: number = 8;          // 已迁移到 BoardManager
+    */
     
     // ==================== 高亮效果常量 ====================
-    private readonly HIGHLIGHT_SCALE = 1.3;           // 高亮时的缩放比例
-    private readonly ANIMATION_SCALE = 1.5;            // 动画时的最大缩放比例
+    // 高亮效果常量已迁移到 TileManager
     
     // ==================== 游戏状态 ====================
     // 游戏逻辑数据矩阵和麻将显示节点矩阵已迁移到 BoardManager
@@ -66,7 +65,7 @@ export class GameManager extends Component {
     private score: number = 0;                                           // 当前游戏得分
     
     // ==================== 高亮显示 ====================
-    private highlightedTiles: Node[] = [];  // 当前高亮显示的麻将节点列表
+    // 高亮显示已迁移到 TileManager
     
     // ==================== 拖拽系统 ====================
     private isDragging: boolean = false;                                // 是否正在进行拖拽操作
@@ -110,34 +109,19 @@ export class GameManager extends Component {
      * @param tileNode 目标麻将节点
      * @param scale 缩放比例
      */
+    /*
+    // 🚫 【已注释】此方法已被 TileManager.setTileHighlight() 替代
     private setTileHighlight(tileNode: Node, type: 'selected' | 'eliminable' = 'selected') {
-        // 使用TileManager设置高亮
-        this.tileManager.setTileHighlight(tileNode, type);
+        throw new Error('此方法已废弃，请直接使用 TileManager.setTileHighlight() 替代');
     }
+    */
     
-    /**
-     * 清除麻将高亮效果
-     * 
-     * 功能：
-     * - 恢复原始背景颜色
-     * - 恢复原始缩放
-     * 
-     * @param tileNode 目标麻将节点
-     */
+    /*
+    // 🚫 【已注释】此方法已被 TileManager.clearTileHighlight() 替代
     private clearTileHighlight(tileNode: Node) {
-        if (!tileNode || !tileNode.isValid) {
-            console.log('节点无效，跳过清除高亮');
-            return;
-        }
-        
-        try {
-            // 恢复缩放
-            tileNode.setScale(1.0, 1.0, 1.0);
-            console.log('恢复原始缩放');
-        } catch (error) {
-            console.error('清除麻将高亮时发生错误:', error);
-        }
+        throw new Error('此方法已废弃，请直接使用 TileManager.clearTileHighlight() 替代');
     }
+    */
     
     start() {
         console.log('GameManager start');
@@ -180,7 +164,7 @@ export class GameManager extends Component {
         // 重置游戏状态
         this.selectedTile = null;
         this.score = 0;
-        this.highlightedTiles = [];
+        // highlightedTiles 已迁移到 TileManager
         this.lastMoveRecord = null;
         console.log('游戏状态已重置');
         
@@ -228,17 +212,18 @@ export class GameManager extends Component {
         const totalTiles = this.boardSize * this.boardSize; // 64个位置
         
         // 计算每种类型的数量，确保总数为偶数且能被类型数整除
-        const tilesPerType = Math.floor(totalTiles / this.tileTypes.length);
+        const tilesPerType = Math.floor(totalTiles / this.tileManager.getTileTypes().length);
         const adjustedTilesPerType = tilesPerType % 2 === 0 ? tilesPerType : tilesPerType - 1;
         
         console.log(`8x8棋盘，每种类型生成 ${adjustedTilesPerType} 个麻将`);
         
         // 为每种类型生成偶数个麻将
-        for (let i = 0; i < this.tileTypes.length; i++) {
+        const tileTypes = this.tileManager.getTileTypes();
+        for (let i = 0; i < tileTypes.length; i++) {
             for (let j = 0; j < adjustedTilesPerType; j++) {
                 tiles.push({
                     type: i,
-                    symbol: this.tileTypes[i],
+                    symbol: tileTypes[i],
                     id: `${i}-${j}`
                 });
             }
@@ -252,10 +237,10 @@ export class GameManager extends Component {
         
         // 如果麻将数量不足64个，补充到64个
         while (tiles.length < totalTiles) {
-            const randomType = Math.floor(Math.random() * this.tileTypes.length);
+            const randomType = Math.floor(Math.random() * tileTypes.length);
             tiles.push({
                 type: randomType,
-                symbol: this.tileTypes[randomType],
+                symbol: tileTypes[randomType],
                 id: `extra-${tiles.length}`
             });
         }
@@ -300,10 +285,12 @@ export class GameManager extends Component {
         this.gameBoard.removeAllChildren();
         
         // 计算起始位置
-        const boardWidth = this.boardSize * this.tileSize + (this.boardSize - 1) * this.tileGap;
-        const boardHeight = this.boardSize * this.tileSize + (this.boardSize - 1) * this.tileGap;
-        const startX = -boardWidth / 2 + this.tileSize / 2;
-        const startY = boardHeight / 2 - this.tileSize / 2;
+        const tileSize = this.boardManager.getTileSize();
+        const tileGap = this.boardManager.getTileGap();
+        const boardWidth = this.boardSize * tileSize + (this.boardSize - 1) * tileGap;
+        const boardHeight = this.boardSize * tileSize + (this.boardSize - 1) * tileGap;
+        const startX = -boardWidth / 2 + tileSize / 2;
+        const startY = boardHeight / 2 - tileSize / 2;
         
         let tilesCreated = 0;
         
@@ -316,8 +303,8 @@ export class GameManager extends Component {
                     const tileNode = this.tileManager.createTileNode(tile, this.gameBoard);
                     
                     // 设置位置
-                    const x = startX + col * (this.tileSize + this.tileGap);
-                    const y = startY - row * (this.tileSize + this.tileGap);
+                    const x = startX + col * (tileSize + tileGap);
+                    const y = startY - row * (tileSize + tileGap);
                     tileNode.setPosition(x, y, 0);
                     
                     // 存储网格坐标到节点
@@ -607,11 +594,11 @@ export class GameManager extends Component {
         console.log('设置选中状态完成，当前选中:', this.selectedTile);
         
         console.log('开始高亮选中麻将...');
-        this.highlightSelectedTile(tileNode);
+        this.tileManager.highlightSelectedTile(tileNode);
         console.log('高亮选中麻将完成');
         
         console.log('开始高亮可消除麻将...');
-        this.highlightEliminable(row, col);
+        this.tileManager.highlightEliminable(row, col, this.boardManager, this.boardSize, (r1, c1, r2, c2) => this.canEliminate(r1, c1, r2, c2));
         console.log('高亮可消除麻将完成');
         
         console.log('=== 选择麻将完成 ===');
@@ -654,7 +641,7 @@ export class GameManager extends Component {
             // 检查选中麻将节点的有效性
             if (this.selectedTile.node && this.selectedTile.node.isValid) {
                 console.log('清除选中麻将高亮');
-                this.clearTileHighlight(this.selectedTile.node);
+                this.tileManager.clearTileHighlight(this.selectedTile.node);
             } else {
                 console.log('选中的麻将节点无效，跳过清除高亮');
             }
@@ -663,7 +650,7 @@ export class GameManager extends Component {
         }
         
         console.log('清除所有高亮');
-        this.clearAllHighlights();
+        this.tileManager.clearAllHighlights();
         
         this.selectedTile = null;
 
@@ -680,75 +667,26 @@ export class GameManager extends Component {
      * 
      * @param tileNode 选中的麻将节点
      */
+    /*
+    // 🚫 【已注释】此方法已被 TileManager.highlightSelectedTile() 替代
     private highlightSelectedTile(tileNode: Node) {
-        console.log('高亮选中麻将:', tileNode.name);
-        
-        this.setTileHighlight(tileNode);
-        
-        // 添加选中动画（轻微的弹跳效果）
-        console.log('添加选中动画');
-        tween(tileNode)
-            .to(0.1, { scale: new Vec3(this.ANIMATION_SCALE, this.ANIMATION_SCALE, 1) })
-            .to(0.1, { scale: new Vec3(this.HIGHLIGHT_SCALE, this.HIGHLIGHT_SCALE, 1) })
-            .start();
-            
-        this.highlightedTiles.push(tileNode);
+        throw new Error('此方法已废弃，请使用 TileManager.highlightSelectedTile() 替代');
     }
+    */
     
-    /**
-     * 高亮可消除的麻将
-     * 
-     * 功能：
-     * - 查找与指定位置麻将可以消除的所有麻将
-     * - 将可消除的麻将显示为黄色
-     * - 添加黄色边框和缩放效果
-     * - 清除之前的高亮状态
-     * 
-     * @param row 指定麻将的行
-     * @param col 指定麻将的列
-     */
+    /*
+    // 🚫 【已注释】此方法已被 TileManager.highlightEliminable() 替代
     private highlightEliminable(row: number, col: number) {
-        this.clearAllHighlights();
-        
-        const currentTile = this.boardManager.getTileData(row, col);
-        if (!currentTile) return;
-        
-        // 遍历所有麻将，找出可消除的
-        for (let r = 0; r < this.boardSize; r++) {
-            for (let c = 0; c < this.boardSize; c++) {
-                if (r === row && c === col) continue;
-                
-                if (this.canEliminate(row, col, r, c)) {
-                    const tileNode = this.boardManager.getTileNode(r, c);
-                    if (tileNode && tileNode.isValid) {
-                        console.log(`高亮麻将: (${r}, ${c})`);
-                        this.setTileHighlight(tileNode);
-                        
-                        this.highlightedTiles.push(tileNode);
-                    }
-                }
-            }
-        }
-        
-        console.log(`高亮了 ${this.highlightedTiles.length} 个可消除的麻将`);
+        throw new Error('此方法已废弃，请使用 TileManager.highlightEliminable() 替代');
     }
+    */
     
-    /**
-     * 清除所有高亮
-     * 
-     * 功能：
-     * - 恢复所有高亮麻将的原始颜色和缩放
-     * - 移除所有边框效果
-     * - 清空高亮节点列表
-     * - 包含完整的安全检查
-     */
+    /*
+    // 🚫 【已注释】此方法已被 TileManager.clearAllHighlights() 替代
     private clearAllHighlights() {
-        // 使用TileManager清除所有高亮
-        this.tileManager.clearAllHighlights();
-        
-        // 清空本地高亮列表
-        this.highlightedTiles = [];
+        throw new Error('此方法已废弃，请使用 TileManager.clearAllHighlights() 替代');
     }
+    */
     
     /**
      * 检查两个麻将是否可以消除
@@ -869,7 +807,7 @@ export class GameManager extends Component {
                 // 缩放 + 旋转动画
                 tween(node)
                     .to(0.15, { 
-                        scale: new Vec3(this.ANIMATION_SCALE, this.ANIMATION_SCALE, 1),
+                        scale: new Vec3(1.5, 1.5, 1),  // 使用固定值替代ANIMATION_SCALE
                         eulerAngles: new Vec3(0, 0, currentRotation + 180 * rotationDirection)
                     })
                     .to(0.25, { 
@@ -894,7 +832,7 @@ export class GameManager extends Component {
         }
         
         // 消除后立即清除所有高亮状态
-        this.clearAllHighlights();
+        this.tileManager.clearAllHighlights();
         this.clearSelection();
         
         // 更新数据
@@ -1470,13 +1408,15 @@ export class GameManager extends Component {
             
             // 更新节点位置
             if (tileNodes[index]) {
-                const boardWidth = this.boardSize * this.tileSize + (this.boardSize - 1) * this.tileGap;
-                const boardHeight = this.boardSize * this.tileSize + (this.boardSize - 1) * this.tileGap;
-                const startX = -boardWidth / 2 + this.tileSize / 2;
-                const startY = boardHeight / 2 - this.tileSize / 2;
+                const tileSize = this.boardManager.getTileSize();
+                const tileGap = this.boardManager.getTileGap();
+                const boardWidth = this.boardSize * tileSize + (this.boardSize - 1) * tileGap;
+                const boardHeight = this.boardSize * tileSize + (this.boardSize - 1) * tileGap;
+                const startX = -boardWidth / 2 + tileSize / 2;
+                const startY = boardHeight / 2 - tileSize / 2;
                 
-                const x = startX + pos.col * (this.tileSize + this.tileGap);
-                const y = startY - pos.row * (this.tileSize + this.tileGap);
+                const x = startX + pos.col * (tileSize + tileGap);
+                const y = startY - pos.row * (tileSize + tileGap);
                 
                 tileNodes[index]!.setPosition(x, y, 0);
                 
@@ -1667,16 +1607,16 @@ export class GameManager extends Component {
         console.log('高亮显示原始拖动麻将及其消除选项');
         
         // 清除之前的高亮
-        this.clearAllHighlights();
+        this.tileManager.clearAllHighlights();
         
         // 高亮原始拖动的麻将（蓝色）
         const originalTileNode = this.boardManager.getTileNode(originalTilePos.row, originalTilePos.col);
         if (originalTileNode && originalTileNode.isValid) {
             try {
-                this.setTileHighlight(originalTileNode);
+                this.tileManager.setTileHighlight(originalTileNode, 'selected');
                 console.log(`高亮原始拖动麻将 (${originalTilePos.row}, ${originalTilePos.col}) 为蓝色`);
                 
-                this.highlightedTiles.push(originalTileNode);
+                // 注意：不需要手动push，setTileHighlight会自动管理高亮列表
             } catch (error) {
                 console.error(`高亮原始拖动麻将时发生错误:`, error);
             }
@@ -1697,10 +1637,10 @@ export class GameManager extends Component {
             const partnerNode = this.boardManager.getTileNode(partnerRow, partnerCol);
             if (partnerNode && partnerNode.isValid) {
                 try {
-                    this.setTileHighlight(partnerNode);
+                    this.tileManager.setTileHighlight(partnerNode, 'eliminable');
                     console.log(`高亮消除伙伴 (${partnerRow}, ${partnerCol}) 为黄色`);
                     
-                    this.highlightedTiles.push(partnerNode);
+                    // 注意：不需要手动push，setTileHighlight会自动管理高亮列表
                 } catch (error) {
                     console.error(`高亮消除伙伴时发生错误:`, error);
                 }
@@ -1718,7 +1658,7 @@ export class GameManager extends Component {
         console.log('消除对数据:', pairs);
         
         // 清除之前的高亮
-        this.clearAllHighlights();
+        this.tileManager.clearAllHighlights();
         
         if (!this.lastMoveRecord) {
             console.log('没有移动记录，无法高亮');
@@ -1765,7 +1705,8 @@ export class GameManager extends Component {
             
             if (tileNode && tileNode.isValid) {
                 try {
-                    this.highlightedTiles.push(tileNode);
+                    // 高亮移动的麻将（蓝色）
+                    this.tileManager.setTileHighlight(tileNode, 'selected');
                 } catch (error) {
                     console.error(`高亮移动麻将 (${row}, ${col}) 时发生错误:`, error);
                 }
@@ -1782,7 +1723,8 @@ export class GameManager extends Component {
             
             if (tileNode && tileNode.isValid) {
                 try {
-                    this.highlightedTiles.push(tileNode);
+                    // 高亮消除伙伴（黄色）
+                    this.tileManager.setTileHighlight(tileNode, 'eliminable');
                 } catch (error) {
                     console.error(`高亮消除伙伴 (${row}, ${col}) 时发生错误:`, error);
                 }
@@ -1792,7 +1734,7 @@ export class GameManager extends Component {
         });
         
         console.log(`=== 高亮完成：${movedPositions.size} 个移动的麻将（蓝色）和 ${partnerPositions.size} 个消除伙伴（黄色）===`);
-        console.log(`总共高亮了 ${this.highlightedTiles.length} 个麻将节点`);
+        console.log(`总共高亮了 ${this.tileManager.getHighlightedTiles().length} 个麻将节点`);
     }
     
     /**
@@ -1868,13 +1810,15 @@ export class GameManager extends Component {
                 // 恢复节点位置（如果节点存在）
                 if (tileNode && tileNode.isValid) {
                     try {
-                        const boardWidth = this.boardSize * this.tileSize + (this.boardSize - 1) * this.tileGap;
-                        const boardHeight = this.boardSize * this.tileSize + (this.boardSize - 1) * this.tileGap;
-                        const startX = -boardWidth / 2 + this.tileSize / 2;
-                        const startY = boardHeight / 2 - this.tileSize / 2;
+                        const tileSize = this.boardManager.getTileSize();
+                        const tileGap = this.boardManager.getTileGap();
+                        const boardWidth = this.boardSize * tileSize + (this.boardSize - 1) * tileGap;
+                        const boardHeight = this.boardSize * tileSize + (this.boardSize - 1) * tileGap;
+                        const startX = -boardWidth / 2 + tileSize / 2;
+                        const startY = boardHeight / 2 - tileSize / 2;
                         
-                        const x = startX + pos.col * (this.tileSize + this.tileGap);
-                        const y = startY - pos.row * (this.tileSize + this.tileGap);
+                        const x = startX + pos.col * (tileSize + tileGap);
+                        const y = startY - pos.row * (tileSize + tileGap);
                         
                         // 检查参数有效性
                         if (typeof x !== 'number' || typeof y !== 'number' || isNaN(x) || isNaN(y)) {
@@ -1909,7 +1853,7 @@ export class GameManager extends Component {
             
             // 发生错误时，尝试清理可能的不一致状态
             this.clearSelection();
-            this.clearAllHighlights();
+            this.tileManager.clearAllHighlights();
         } finally {
             // 无论成功还是失败，都清除移动记录
             this.lastMoveRecord = null;
