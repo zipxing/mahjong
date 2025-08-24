@@ -76,58 +76,80 @@ export class BoardManager {
      * @returns 网格坐标 {row, col}，如果超出范围则返回null
      */
     screenToGrid(screenPos: Vec2): { row: number, col: number } | null {
+        console.log('--- BoardManager坐标转换开始（以棋盘左上角为原点）---');
+        console.log('1. 原始触摸坐标:', screenPos);
+        
         if (!this.gameBoardNode) {
             console.error('GameBoard节点未设置');
             return null;
         }
         
-        // 获取GameBoard的UITransform组件
+        // 将触摸坐标转换为GameBoard节点的本地坐标
         const gameBoardTransform = this.gameBoardNode.getComponent(UITransform);
         if (!gameBoardTransform) {
-            console.error('GameBoard节点缺少UITransform组件');
+            console.error('无法获取GameBoard的UITransform');
             return null;
         }
         
-        // 第一步：将屏幕坐标转换为世界坐标
-        const worldPos = new Vec3();
-        gameBoardTransform.convertToWorldSpaceAR(Vec3.ZERO, worldPos);
+        const worldPos = new Vec3(screenPos.x, screenPos.y, 0);
+        const localPos = gameBoardTransform.convertToNodeSpaceAR(worldPos);
+        console.log('2. GameBoard本地坐标:', localPos);
         
-        // 第二步：将屏幕坐标转换为相对于GameBoard的本地坐标
-        // 注意：这里需要考虑Cocos Creator的坐标系统
-        // 屏幕坐标原点在左上角，Y轴向下
-        // 世界坐标原点在屏幕中心，Y轴向上
-        const gameBoardWorldPos = this.gameBoardNode.getWorldPosition();
-        
-        // 计算相对于棋盘左上角的偏移
+        // 计算棋盘的实际尺寸和左上角位置
         const boardWidth = this.boardSize * this.tileSize + (this.boardSize - 1) * this.tileGap;
         const boardHeight = this.boardSize * this.tileSize + (this.boardSize - 1) * this.tileGap;
         
-        // 棋盘左上角在世界坐标系中的位置
-        const boardTopLeftX = gameBoardWorldPos.x - boardWidth / 2;
-        const boardTopLeftY = gameBoardWorldPos.y + boardHeight / 2;
+        // 棋盘左上角在GameBoard本地坐标系中的位置
+        const boardLeftTopX = -boardWidth / 2;
+        const boardLeftTopY = boardHeight / 2;
         
-        // 将屏幕坐标转换为世界坐标（简化处理）
-        // 这里假设屏幕中心对应世界坐标原点
-        const screenCenterX = 375;  // 设计分辨率宽度的一半
-        const screenCenterY = 667;  // 设计分辨率高度的一半
+        console.log('3. 棋盘信息:', { 
+            boardWidth, 
+            boardHeight, 
+            boardLeftTopX, 
+            boardLeftTopY,
+            tileSize: this.tileSize,
+            tileGap: this.tileGap
+        });
         
-        const worldX = screenPos.x - screenCenterX;
-        const worldY = screenCenterY - screenPos.y;  // Y轴翻转
+        // 计算相对于棋盘左上角的偏移（以左上角为原点的坐标系）
+        const offsetX = localPos.x - boardLeftTopX;  // 从左到右为正
+        const offsetY = boardLeftTopY - localPos.y;  // 从上到下为正
         
-        // 计算相对于棋盘左上角的本地坐标
-        const localX = worldX - boardTopLeftX;
-        const localY = boardTopLeftY - worldY;  // Y轴翻转
+        console.log('4. 相对于棋盘左上角的偏移:', { offsetX, offsetY });
         
-        // 第三步：将本地坐标转换为网格坐标
-        const gridUnit = this.tileSize + this.tileGap;
-        const col = Math.floor(localX / gridUnit);
-        const row = Math.floor(localY / gridUnit);
+        // 检查是否在棋盘范围内
+        if (offsetX < 0 || offsetY < 0 || offsetX > boardWidth || offsetY > boardHeight) {
+            console.log('5. 触摸点在棋盘外');
+            return null;
+        }
         
-        // 边界检查
-        if (row >= 0 && row < this.boardSize && col >= 0 && col < this.boardSize) {
+        // 计算网格位置（每个格子包含麻将+间隙）
+        const cellWidth = this.tileSize + this.tileGap;
+        const cellHeight = this.tileSize + this.tileGap;
+        
+        const col = Math.floor(offsetX / cellWidth);
+        const row = Math.floor(offsetY / cellHeight);
+        
+        console.log('5. 网格计算:', { 
+            cellWidth, 
+            cellHeight, 
+            rawCol: offsetX / cellWidth, 
+            rawRow: offsetY / cellHeight,
+            col, 
+            row
+        });
+        
+        // 验证网格位置有效性
+        const isValid = row >= 0 && row < this.boardSize && col >= 0 && col < this.boardSize;
+        console.log('6. 有效性检查:', { row, col, boardSize: this.boardSize, isValid });
+        
+        if (isValid) {
+            console.log('--- BoardManager坐标转换成功 ---');
             return { row, col };
         }
         
+        console.log('--- BoardManager坐标转换失败：网格位置无效 ---');
         return null;
     }
     
@@ -244,6 +266,20 @@ export class BoardManager {
     
     getTileGap(): number {
         return this.tileGap;
+    }
+    
+    /**
+     * 检查棋盘上是否还有剩余的麻将
+     */
+    hasRemainingTiles(): boolean {
+        for (let row = 0; row < this.boardSize; row++) {
+            for (let col = 0; col < this.boardSize; col++) {
+                if (this.board[row][col] !== null) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
     
     getBoard(): (TileData | null)[][] {

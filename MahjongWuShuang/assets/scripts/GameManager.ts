@@ -284,6 +284,8 @@ export class GameManager extends Component {
         for (let row = 0; row < this.boardSize; row++) {
             for (let col = 0; col < this.boardSize; col++) {
                 this.board[row][col] = tiles[tileIndex++];
+                // 同步到BoardManager
+                this.boardManager.setTileData(row, col, this.board[row][col]);
             }
         }
         
@@ -294,7 +296,7 @@ export class GameManager extends Component {
         for (let row = 0; row < this.boardSize; row++) {
             let rowStr = `第${row}行: `;
             for (let col = 0; col < this.boardSize; col++) {
-                const tile = this.board[row][col];
+                const tile = this.boardManager.getTileData(row, col);
                 rowStr += tile ? `${tile.symbol}(${tile.type}) ` : 'null ';
             }
             console.log(rowStr);
@@ -322,7 +324,7 @@ export class GameManager extends Component {
         // 创建麻将节点
         for (let row = 0; row < this.boardSize; row++) {
             for (let col = 0; col < this.boardSize; col++) {
-                const tile = this.board[row][col];
+                const tile = this.boardManager.getTileData(row, col);
                 if (tile) {
                     // 使用TileManager创建麻将节点
                     const tileNode = this.tileManager.createTileNode(tile, this.gameBoard);
@@ -337,6 +339,8 @@ export class GameManager extends Component {
                     (tileNode as any).gridCol = col;
                     
                     this.tileNodes[row][col] = tileNode;
+                    // 同步到BoardManager
+                    this.boardManager.setTileNode(row, col, tileNode);
                     tilesCreated++;
                 }
             }
@@ -376,10 +380,10 @@ export class GameManager extends Component {
         console.log('触摸坐标:', touchPos);
         
         // 获取点击的麻将位置
-        const gridPos = this.getGridPositionFromTouch(touchPos);
+        const gridPos = this.boardManager.screenToGrid(touchPos);
         console.log('网格位置:', gridPos);
         
-        if (gridPos && this.board[gridPos.row] && this.board[gridPos.row][gridPos.col]) {
+        if (gridPos && this.boardManager.getTileData(gridPos.row, gridPos.col)) {
             console.log('开始拖拽准备');
             // 记录拖拽开始位置，但不立即设置isDragging（需要移动一定距离才算拖拽）
             this.dragStartPos = {
@@ -511,7 +515,7 @@ export class GameManager extends Component {
             } else {
                 // 处理拖拽移动
                 console.log('移动距离超过阈值，处理拖拽移动');
-                const targetGridPos = this.getGridPositionFromTouch(new Vec2(touchPos.x, touchPos.y));
+                const targetGridPos = this.boardManager.screenToGrid(new Vec2(touchPos.x, touchPos.y));
                 console.log('目标网格位置:', targetGridPos);
                 
                 if (targetGridPos) {
@@ -533,99 +537,13 @@ export class GameManager extends Component {
     }
     
     /**
-     * 将屏幕触摸坐标转换为棋盘网格坐标
-     * 
-     * 坐标系统转换：
-     * - 屏幕坐标 → GameBoard本地坐标
-     * - 本地坐标 → 相对于棋盘左上角的偏移
-     * - 偏移量 → 网格行列坐标
-     * 
-     * 注意：Web原点左上角Y向下，Cocos原点中心Y向上
-     * 
-     * @param touchPos 屏幕触摸坐标
-     * @returns 网格坐标 {row, col} 或 null（如果超出边界）
-     */
-    private getGridPositionFromTouch(touchPos: Vec2): {row: number, col: number} | null {
-        console.log('--- 坐标转换开始（以棋盘左上角为原点）---');
-        console.log('1. 原始触摸坐标:', touchPos);
-        
-        // 将触摸坐标转换为GameBoard节点的本地坐标
-        const gameBoardTransform = this.gameBoard.getComponent(UITransform);
-        if (!gameBoardTransform) {
-            console.error('无法获取GameBoard的UITransform');
-            return null;
-        }
-        
-        const worldPos = new Vec3(touchPos.x, touchPos.y, 0);
-        const localPos = gameBoardTransform.convertToNodeSpaceAR(worldPos);
-        console.log('2. GameBoard本地坐标:', localPos);
-        
-        // 计算棋盘的实际尺寸和左上角位置
-        const boardWidth = this.boardSize * this.tileSize + (this.boardSize - 1) * this.tileGap;
-        const boardHeight = this.boardSize * this.tileSize + (this.boardSize - 1) * this.tileGap;
-        
-        // 棋盘左上角在GameBoard本地坐标系中的位置
-        const boardLeftTopX = -boardWidth / 2;
-        const boardLeftTopY = boardHeight / 2;
-        
-        console.log('3. 棋盘信息:', { 
-            boardWidth, 
-            boardHeight, 
-            boardLeftTopX, 
-            boardLeftTopY,
-            tileSize: this.tileSize,
-            tileGap: this.tileGap
-        });
-        
-        // 计算相对于棋盘左上角的偏移（以左上角为原点的坐标系）
-        const offsetX = localPos.x - boardLeftTopX;  // 从左到右为正
-        const offsetY = boardLeftTopY - localPos.y;  // 从上到下为正
-        
-        console.log('4. 相对于棋盘左上角的偏移:', { offsetX, offsetY });
-        
-        // 检查是否在棋盘范围内
-        if (offsetX < 0 || offsetY < 0 || offsetX > boardWidth || offsetY > boardHeight) {
-            console.log('5. 触摸点在棋盘外');
-            return null;
-        }
-        
-        // 计算网格位置（每个格子包含麻将+间隙）
-        const cellWidth = this.tileSize + this.tileGap;
-        const cellHeight = this.tileSize + this.tileGap;
-        
-        const col = Math.floor(offsetX / cellWidth);
-        const row = Math.floor(offsetY / cellHeight);
-        
-        console.log('5. 网格计算:', { 
-            cellWidth, 
-            cellHeight, 
-            rawCol: offsetX / cellWidth, 
-            rawRow: offsetY / cellHeight,
-            col, 
-            row
-        });
-        
-        // 验证网格位置有效性
-        const isValid = row >= 0 && row < this.boardSize && col >= 0 && col < this.boardSize;
-        console.log('6. 有效性检查:', { row, col, boardSize: this.boardSize, isValid });
-        
-        if (isValid) {
-            console.log('--- 坐标转换成功 ---');
-            return { row, col };
-        }
-        
-        console.log('--- 坐标转换失败：网格位置无效 ---');
-        return null;
-    }
-    
-    /**
      * 处理麻将点击事件 - 参考web版本实现
      */
     private handleTileClick(row: number, col: number) {
         console.log(`=== 处理麻将点击: (${row}, ${col}) ===`);
         
-        const clickedTileNode = this.tileNodes[row][col];
-        const clickedTileData = this.board[row][col];
+        const clickedTileNode = this.boardManager.getTileNode(row, col);
+        const clickedTileData = this.boardManager.getTileData(row, col);
         console.log('点击的麻将数据:', clickedTileData);
         console.log('点击的麻将节点:', clickedTileNode ? '存在' : '不存在');
         
@@ -807,7 +725,7 @@ export class GameManager extends Component {
     private highlightEliminable(row: number, col: number) {
         this.clearAllHighlights();
         
-        const currentTile = this.board[row][col];
+        const currentTile = this.boardManager.getTileData(row, col);
         if (!currentTile) return;
         
         // 遍历所有麻将，找出可消除的
@@ -863,8 +781,8 @@ export class GameManager extends Component {
     private canEliminate(r1: number, c1: number, r2: number, c2: number): boolean {
         console.log(`--- 消除检查: (${r1},${c1}) vs (${r2},${c2}) ---`);
         
-        const tile1 = this.board[r1][c1];
-        const tile2 = this.board[r2][c2];
+        const tile1 = this.boardManager.getTileData(r1, c1);
+        const tile2 = this.boardManager.getTileData(r2, c2);
         
         console.log('麻将1:', tile1);
         console.log('麻将2:', tile2);
@@ -897,8 +815,9 @@ export class GameManager extends Component {
             console.log(`检查列范围: ${startCol} 到 ${endCol}`);
             
             for (let col = startCol; col < endCol; col++) {
-                console.log(`检查位置 (${r1}, ${col}):`, this.board[r1][col]);
-                if (this.board[r1][col] !== null) {
+                const tileAtPos = this.boardManager.getTileData(r1, col);
+                console.log(`检查位置 (${r1}, ${col}):`, tileAtPos);
+                if (tileAtPos !== null) {
                     console.log('路径被阻挡');
                     return false;
                 }
@@ -914,8 +833,9 @@ export class GameManager extends Component {
             console.log(`检查行范围: ${startRow} 到 ${endRow}`);
             
             for (let row = startRow; row < endRow; row++) {
-                console.log(`检查位置 (${row}, ${c1}):`, this.board[row][c1]);
-                if (this.board[row][c1] !== null) {
+                const tileAtPos = this.boardManager.getTileData(row, c1);
+                console.log(`检查位置 (${row}, ${c1}):`, tileAtPos);
+                if (tileAtPos !== null) {
                     console.log('路径被阻挡');
                     return false;
                 }
@@ -994,10 +914,8 @@ export class GameManager extends Component {
         
         // 更新数据
         setTimeout(() => {
-            this.board[row1][col1] = null;
-            this.board[row2][col2] = null;
-            this.tileNodes[row1][col1] = null;
-            this.tileNodes[row2][col2] = null;
+            this.boardManager.clearPosition(row1, col1);
+            this.boardManager.clearPosition(row2, col2);
             this.score += 10;
             
             console.log(`当前分数: ${this.score}`);
@@ -1015,7 +933,7 @@ export class GameManager extends Component {
      * @returns 是否获胜
      */
     private checkWinCondition() {
-        const hasRemainingTiles = this.board.some(row => row.some(tile => tile !== null));
+        const hasRemainingTiles = this.boardManager.hasRemainingTiles();
         if (!hasRemainingTiles) {
             setTimeout(() => {
                 console.log('🎉 恭喜您获得胜利！所有麻将都已消除！');
@@ -1086,7 +1004,7 @@ export class GameManager extends Component {
             case 'left':
                 // 往左拖拽：推动左边的连续麻将（推动效果）
                 for (let c = startCol - 1; c >= 0; c--) {
-                    if (this.board[startRow][c] !== null) {
+                    if (this.boardManager.getTileData(startRow, c) !== null) {
                         group.unshift({ row: startRow, col: c });
                         console.log(`往左拖拽，添加左边麻将: (${startRow}, ${c})`);
                     } else {
@@ -1098,7 +1016,7 @@ export class GameManager extends Component {
             case 'right':
                 // 往右拖拽：带动右边的连续麻将（推动效果）
                 for (let c = startCol + 1; c < this.boardSize; c++) {
-                    if (this.board[startRow][c] !== null) {
+                    if (this.boardManager.getTileData(startRow, c) !== null) {
                         group.push({ row: startRow, col: c });
                         console.log(`往右拖拽，添加右边麻将: (${startRow}, ${c})`);
                     } else {
@@ -1110,7 +1028,7 @@ export class GameManager extends Component {
             case 'up':
                 // 往上拖拽：推动下边的连续麻将向上移动（推动效果）
                 for (let r = startRow + 1; r < this.boardSize; r++) {
-                    if (this.board[r][startCol] !== null) {
+                    if (this.boardManager.getTileData(r, startCol) !== null) {
                         group.push({ row: r, col: startCol });
                         console.log(`往上拖拽，添加下边麻将: (${r}, ${startCol})`);
                     } else {
@@ -1122,7 +1040,7 @@ export class GameManager extends Component {
             case 'down':
                 // 往下拖拽：推动上边的连续麻将向下移动（推动效果）
                 for (let r = startRow - 1; r >= 0; r--) {
-                    if (this.board[r][startCol] !== null) {
+                    if (this.boardManager.getTileData(r, startCol) !== null) {
                         group.unshift({ row: r, col: startCol });
                         console.log(`往下拖拽，添加上边麻将: (${r}, ${startCol})`);
                     } else {
@@ -1159,7 +1077,7 @@ export class GameManager extends Component {
             const originalTileNode = this.tileNodes[tileGrid.row][tileGrid.col];
             if (!originalTileNode) return;
             
-            const tileData = this.board[tileGrid.row][tileGrid.col];
+            const tileData = this.boardManager.getTileData(tileGrid.row, tileGrid.col);
             if (!tileData) return;
             
             // 从对应类型的对象池获取完全配置好的虚影节点
@@ -1381,12 +1299,12 @@ export class GameManager extends Component {
             }
             
             // 检查该位置是否有障碍物（不属于当前拖动组的麻将）
-            if (this.board[checkRow][checkCol] !== null) {
+            const obstacleTile = this.boardManager.getTileData(checkRow, checkCol);
+            if (obstacleTile !== null) {
                 // 检查这个位置的麻将是否属于当前拖动组
                 const isInDragGroup = this.dragGroup.some(tile => tile.row === checkRow && tile.col === checkCol);
                 
                 if (!isInDragGroup) {
-                    const obstacleTile = this.board[checkRow][checkCol];
                     console.log(`  ❌ 路径被阻挡: (${checkRow}, ${checkCol}) 有其他麻将 ${obstacleTile?.symbol}`);
                     return false;
                 } else {
@@ -1472,7 +1390,7 @@ export class GameManager extends Component {
             }
             
             // 检查目标位置是否被其他麻将占用（不在拖动组中的麻将）
-            const existingTile = this.board[pos.row][pos.col];
+            const existingTile = this.boardManager.getTileData(pos.row, pos.col);
             if (existingTile) {
                 const isInDragGroup = this.dragGroup.some(tile => tile.row === pos.row && tile.col === pos.col);
                 if (!isInDragGroup) {
@@ -1525,8 +1443,8 @@ export class GameManager extends Component {
                 return;
             }
             
-            tileData[index] = this.board[pos.row][pos.col];
-            tileNodes[index] = this.tileNodes[pos.row][pos.col];
+            tileData[index] = this.boardManager.getTileData(pos.row, pos.col);
+            tileNodes[index] = this.boardManager.getTileNode(pos.row, pos.col);
             
             console.log(`保存位置 ${index}: (${pos.row}, ${pos.col})`);
             console.log(`麻将数据:`, tileData[index]);
@@ -1547,8 +1465,7 @@ export class GameManager extends Component {
             }
             
             // 清除旧位置
-            this.board[pos.row][pos.col] = null;
-            this.tileNodes[pos.row][pos.col] = null;
+            this.boardManager.clearPosition(pos.row, pos.col);
         });
         
         // 验证移动记录完整性
@@ -1563,8 +1480,8 @@ export class GameManager extends Component {
         
         // 设置新位置
         newPositions.forEach((pos, index) => {
-            this.board[pos.row][pos.col] = tileData[index];
-            this.tileNodes[pos.row][pos.col] = tileNodes[index];
+            this.boardManager.setTileData(pos.row, pos.col, tileData[index]);
+            this.boardManager.setTileNode(pos.row, pos.col, tileNodes[index]);
             
             // 更新节点位置
             if (tileNodes[index]) {
@@ -1629,7 +1546,7 @@ export class GameManager extends Component {
         for (let r = 0; r < this.boardSize; r++) {
             for (let c = 0; c < this.boardSize; c++) {
                 // 跳过空位置和自己
-                if (!this.board[r][c] || (r === originalDragTileNewPos.row && c === originalDragTileNewPos.col)) continue;
+                if (!this.boardManager.getTileData(r, c) || (r === originalDragTileNewPos.row && c === originalDragTileNewPos.col)) continue;
                 
                 if (this.canEliminate(originalDragTileNewPos.row, originalDragTileNewPos.col, r, c)) {
                     eliminablePairs.push({
@@ -1678,7 +1595,7 @@ export class GameManager extends Component {
         
         // 检查所有移动后的新位置的麻将
         this.lastMoveRecord.newPositions.forEach(newPos => {
-            if (!this.board[newPos.row][newPos.col]) return;
+            if (!this.boardManager.getTileData(newPos.row, newPos.col)) return;
             
             console.log(`检查移动到 (${newPos.row}, ${newPos.col}) 的麻将的消除机会`);
             
@@ -1686,7 +1603,7 @@ export class GameManager extends Component {
             for (let r = 0; r < this.boardSize; r++) {
                 for (let c = 0; c < this.boardSize; c++) {
                     // 跳过空位置和自己
-                    if (!this.board[r][c] || (r === newPos.row && c === newPos.col)) continue;
+                    if (!this.boardManager.getTileData(r, c) || (r === newPos.row && c === newPos.col)) continue;
                     
                     if (this.canEliminate(newPos.row, newPos.col, r, c)) {
                         // 检查这个消除对是否已经存在（避免重复）
@@ -1858,7 +1775,7 @@ export class GameManager extends Component {
         // 高亮移动的麻将（更明显的蓝色）
         movedPositions.forEach(posStr => {
             const [row, col] = posStr.split('-').map(Number);
-            const tileNode = this.tileNodes[row][col];
+            const tileNode = this.boardManager.getTileNode(row, col);
             console.log(`尝试高亮移动麻将 (${row}, ${col}):`, tileNode ? '节点存在' : '节点不存在');
             
             if (tileNode && tileNode.isValid) {
@@ -1875,7 +1792,7 @@ export class GameManager extends Component {
         // 高亮消除伙伴（更明显的黄色）
         partnerPositions.forEach(posStr => {
             const [row, col] = posStr.split('-').map(Number);
-            const tileNode = this.tileNodes[row][col];
+            const tileNode = this.boardManager.getTileNode(row, col);
             console.log(`尝试高亮消除伙伴 (${row}, ${col}):`, tileNode ? '节点存在' : '节点不存在');
             
             if (tileNode && tileNode.isValid) {
@@ -1936,8 +1853,7 @@ export class GameManager extends Component {
                     pos.col >= 0 && pos.col < this.boardSize) {
                     
                     console.log(`清除新位置 (${pos.row}, ${pos.col})`);
-                    this.board[pos.row][pos.col] = null;
-                    this.tileNodes[pos.row][pos.col] = null;
+                    this.boardManager.clearPosition(pos.row, pos.col);
                 } else {
                     console.error(`无效的新位置 ${index}:`, pos);
                 }
@@ -1961,8 +1877,8 @@ export class GameManager extends Component {
                 console.log(`麻将节点:`, tileNode ? '存在' : '不存在');
                 
                 // 恢复数据
-                this.board[pos.row][pos.col] = tileData;
-                this.tileNodes[pos.row][pos.col] = tileNode;
+                this.boardManager.setTileData(pos.row, pos.col, tileData);
+                this.boardManager.setTileNode(pos.row, pos.col, tileNode);
                 
                 // 恢复节点位置（如果节点存在）
                 if (tileNode && tileNode.isValid) {
