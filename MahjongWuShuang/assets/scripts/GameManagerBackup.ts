@@ -21,9 +21,6 @@
  */
 
 import { _decorator, Component, Node, Vec3, Color, Label, UITransform, input, Input, EventTouch, Vec2, tween, UIOpacity, Sprite, SpriteFrame, SpriteAtlas } from 'cc';
-import { BoardManager } from './BoardManager';
-import { TileManager } from './TileManager';
-import { ShadowPool } from './ShadowPool';
 const { ccclass, property } = _decorator;
 
 /**
@@ -47,7 +44,6 @@ export class GameManager extends Component {
     mahjongAtlas: SpriteAtlas = null!;  // 麻将图集（用于DrawCall合批）
     
     // ==================== 游戏配置 ====================
-    // ⚠️ 【冗余属性】与子模块重复，保留用于兼容性
     private boardSize: number = 8;  // 棋盘大小：8x8网格
     private tileTypes: string[] = [
         '🀄', '🀅', '🀆', '🀇',  // 中、发、白、一万
@@ -77,15 +73,9 @@ export class GameManager extends Component {
     private dragShadows: Node[] = [];                                   // 拖拽时显示的半透明虚影节点
     private dragDirection: 'horizontal' | 'vertical' | null = null;    // 拖拽的主要方向
     
-    // // ==================== 对象池系统 ====================
-    // // ⚠️ 【冗余属性】已被 ShadowPool 替代，保留用于兼容性
-    // private shadowPoolByType: Map<number, Node[]> = new Map();          // 按麻将类型分类的虚影对象池
-    // private readonly POOL_SIZE_PER_TYPE = 8;                            // 每种麻将类型的对象池大小
-    
-    // ==================== 模块管理器 ====================
-    private boardManager: BoardManager = new BoardManager();
-    private tileManager: TileManager = new TileManager();
-    private shadowPool: ShadowPool = new ShadowPool();
+    // ==================== 对象池系统 ====================
+    private shadowPoolByType: Map<number, Node[]> = new Map();          // 按麻将类型分类的虚影对象池
+    private readonly POOL_SIZE_PER_TYPE = 8;                            // 每种麻将类型的对象池大小
     
     // ==================== 移动历史与智能回退 ====================
     private lastMoveRecord: {
@@ -111,9 +101,10 @@ export class GameManager extends Component {
      * @param tileNode 目标麻将节点
      * @param scale 缩放比例
      */
-    private setTileHighlight(tileNode: Node, type: 'selected' | 'eliminable' = 'selected') {
-        // 使用TileManager设置高亮
-        this.tileManager.setTileHighlight(tileNode, type);
+    private setTileHighlight(tileNode: Node, scale: number = this.HIGHLIGHT_SCALE) {
+        // 设置缩放效果
+        tileNode.setScale(scale, scale, 1.0);
+        console.log('设置缩放:', scale);
     }
     
     /**
@@ -161,7 +152,6 @@ export class GameManager extends Component {
      * 初始化游戏
      * 
      * 功能：
-     * - 初始化各个模块管理器
      * - 生成8x8游戏棋盘数据
      * - 创建麻将显示节点并渲染到界面
      * - 重置所有游戏状态
@@ -175,9 +165,6 @@ export class GameManager extends Component {
             return;
         }
         
-        // 初始化模块管理器
-        this.initManagers();
-        
         // 重置游戏状态
         this.selectedTile = null;
         this.score = 0;
@@ -188,33 +175,15 @@ export class GameManager extends Component {
         this.createBoard();
         this.generateSimplePairs();
         this.renderBoard();
+        this.initShadowPool();  // 初始化虚影对象池
         
         console.log('游戏初始化完成！');
-    }
-    
-    /**
-     * 初始化模块管理器
-     */
-    private initManagers() {
-        console.log('初始化模块管理器...');
-        
-        // 初始化棋盘管理器
-        this.boardManager.init(this.gameBoard);
-        
-        // 初始化麻将管理器
-        this.tileManager.init(this.mahjongAtlas);
-        
-        // 初始化虚影对象池
-        this.shadowPool.init(this.mahjongAtlas, this.node.parent || this.node);
-        
-        console.log('✅ 模块管理器初始化完成');
     }
     
     /**
      * 创建空白棋盘
      */
     private createBoard() {
-        // 使用BoardManager创建棋盘，但保持原有的本地引用以兼容现有代码
         this.board = [];
         this.tileNodes = [];
         for (let i = 0; i < this.boardSize; i++) {
@@ -225,11 +194,6 @@ export class GameManager extends Component {
                 this.tileNodes[i][j] = null;
             }
         }
-        
-        // 同步到BoardManager
-        this.boardManager.setBoard(this.board);
-        this.boardManager.setTileNodes(this.tileNodes);
-        
         console.log(`创建了 ${this.boardSize}x${this.boardSize} 的棋盘`);
     }
     
@@ -324,18 +288,15 @@ export class GameManager extends Component {
             for (let col = 0; col < this.boardSize; col++) {
                 const tile = this.board[row][col];
                 if (tile) {
-                    // 使用TileManager创建麻将节点
-                    const tileNode = this.tileManager.createTileNode(tile, this.gameBoard);
+                    const tileNode = this.createTileNode(tile, row, col);
                     
                     // 设置位置
                     const x = startX + col * (this.tileSize + this.tileGap);
                     const y = startY - row * (this.tileSize + this.tileGap);
                     tileNode.setPosition(x, y, 0);
                     
-                    // 存储网格坐标到节点
-                    (tileNode as any).gridRow = row;
-                    (tileNode as any).gridCol = col;
-                    
+                    // 添加到场景
+                    this.gameBoard.addChild(tileNode);
                     this.tileNodes[row][col] = tileNode;
                     tilesCreated++;
                 }
@@ -346,19 +307,321 @@ export class GameManager extends Component {
     }
     
     /**
+     * 创建麻将节点
+     * 
+     * 功能：
+     * - 创建包含UITransform、Label组件的麻将节点
+     * - 设置麻将的位置、大小、颜色和文本
+     * - 存储网格坐标信息到节点属性中
+     * 
+     * @param tileData 麻将数据
+     * @param row 行坐标
+     * @param col 列坐标
+     * @returns 创建的麻将节点
+     */
+    private createTileNode(tileData: TileData, row: number, col: number): Node {
+        const tileNode = new Node(`Tile_${row}_${col}`);
+        
+        // 添加UITransform
+        const transform = tileNode.addComponent(UITransform);
+        transform.setContentSize(this.tileSize, this.tileSize);
+        
+        // 尝试使用图集优化DrawCall
+        // 为了降低drawcall和美术效果，后续这里改成图集即可
+        if (this.mahjongAtlas && this.createSpriteBasedTile(tileNode, tileData)) {
+            console.log(`使用Sprite方式创建麻将: ${tileData.symbol}`);
+        } else {
+            // 降级到Label方式
+            this.createLabelBasedTile(tileNode, tileData);
+            console.log(`使用Label方式创建麻将: ${tileData.symbol}`);
+        }
+        
+        // 存储数据
+        (tileNode as any).tileData = tileData;
+        (tileNode as any).gridRow = row;
+        (tileNode as any).gridCol = col;
+        
+        return tileNode;
+    }
+    
+    /**
+     * 创建基于Sprite的麻将（DrawCall优化）
+     */
+    private createSpriteBasedTile(tileNode: Node, tileData: TileData): boolean {
+        try {
+            // 根据麻将类型获取对应的SpriteFrame
+            const spriteFrameName = this.getSpriteFrameName(tileData.type);
+            const spriteFrame = this.mahjongAtlas.getSpriteFrame(spriteFrameName);
+            
+            if (spriteFrame) {
+                const sprite = tileNode.addComponent(Sprite);
+                sprite.spriteFrame = spriteFrame;
+                return true;
+            }
+        } catch (error) {
+            console.warn('Sprite方式创建失败，降级到Label:', error);
+        }
+        return false;
+    }
+    
+    /**
+     * 创建基于Label的麻将（兼容方式）
+     */
+    private createLabelBasedTile(tileNode: Node, tileData: TileData): void {
+        // 创建文字标签
+        const labelNode = new Node('Label');
+        const labelTransform = labelNode.addComponent(UITransform);
+        labelTransform.setContentSize(this.tileSize, this.tileSize);
+        
+        const label = labelNode.addComponent(Label);
+        label.string = tileData.symbol;
+        label.fontSize = 36;
+        label.horizontalAlign = Label.HorizontalAlign.CENTER;
+        label.verticalAlign = Label.VerticalAlign.CENTER;
+        
+        // 设置颜色 - 8种麻将对应8种颜色
+        const colors = [
+            new Color(229, 62, 62),   // 🀄 中 - 红色
+            new Color(56, 161, 105),  // 🀅 发 - 绿色  
+            new Color(49, 130, 206),  // 🀆 白 - 蓝色
+            new Color(214, 158, 46),  // 🀇 一万 - 黄色
+            new Color(128, 90, 213),  // 🀈 二万 - 紫色
+            new Color(221, 107, 32),  // 🀉 三万 - 橙色
+            new Color(49, 151, 149),  // 🀊 四万 - 青色
+            new Color(236, 72, 153),  // 🀋 五万 - 粉色
+        ];
+        
+        if (tileData.type < colors.length) {
+            label.color = colors[tileData.type];
+        }
+        
+        tileNode.addChild(labelNode);
+    }
+    
+    /**
+     * 获取Sprite图片名称
+     */
+    private getSpriteFrameName(tileType: number): string {
+        const spriteNames = [
+            'mahjong_zhong',    // 🀄 中
+            'mahjong_fa',       // 🀅 发
+            'mahjong_bai',      // 🀆 白
+            'mahjong_1wan',     // 🀇 一万
+            'mahjong_2wan',     // 🀈 二万
+            'mahjong_3wan',     // 🀉 三万
+            'mahjong_4wan',     // 🀊 四万
+            'mahjong_5wan',     // 🀋 五万
+        ];
+        
+        return spriteNames[tileType] || 'mahjong_default';
+    }
+    
+    /**
+     * 初始化虚影对象池
+     * 
+     * 功能：
+     * - 按麻将类型预先创建虚影节点
+     * - 每种类型预创建足够数量，内容完全配置好
+     * - 支持SpriteAtlas和Label两种渲染模式
+     * - 避免拖拽时的任何创建和配置开销
+     */
+    private initShadowPool() {
+        const renderMode = this.mahjongAtlas ? 'SpriteAtlas' : 'Label';
+        console.log(`🎨 初始化按类型分类的虚影对象池 (渲染模式: ${renderMode})...`);
+        
+        // 清空现有对象池
+        this.shadowPoolByType.forEach(pool => {
+            pool.forEach(node => node.destroy());
+        });
+        this.shadowPoolByType.clear();
+        
+        // 为每种麻将类型创建对象池
+        for (let tileType = 0; tileType < this.tileTypes.length; tileType++) {
+            const typePool: Node[] = [];
+            
+            // 为每种类型预创建指定数量的虚影节点
+            for (let i = 0; i < this.POOL_SIZE_PER_TYPE; i++) {
+                const shadowNode = this.createShadowNodeForType(tileType);
+                shadowNode.active = false; // 初始状态为隐藏
+                shadowNode.setParent(this.node.parent); // 添加到Canvas
+                typePool.push(shadowNode);
+            }
+            
+            this.shadowPoolByType.set(tileType, typePool);
+        }
+        
+        // 统计渲染模式使用情况
+        let spriteCount = 0;
+        let labelCount = 0;
+        this.shadowPoolByType.forEach(pool => {
+            pool.forEach(node => {
+                if ((node as any).renderMode === 'Sprite') {
+                    spriteCount++;
+                } else {
+                    labelCount++;
+                }
+            });
+        });
+        
+        const totalNodes = this.tileTypes.length * this.POOL_SIZE_PER_TYPE;
+        console.log(`✅ 虚影对象池初始化完成！`);
+        console.log(`   📊 总节点数: ${totalNodes} (${this.tileTypes.length}种类型 × ${this.POOL_SIZE_PER_TYPE}个/类型)`);
+        console.log(`   🎨 渲染统计: Sprite=${spriteCount}, Label=${labelCount}`);
+        console.log(`   ⚡ DrawCall优化: ${spriteCount > 0 ? '已启用' : '未启用 (需配置SpriteAtlas)'}`);
+    }
+    
+    /**
+     * 为指定麻将类型创建完全配置好的虚影节点
+     * 
+     * @param tileType 麻将类型索引
+     */
+    private createShadowNodeForType(tileType: number): Node {
+        const shadowNode = new Node(`Shadow_Type_${tileType}`);
+        const shadowTransform = shadowNode.addComponent(UITransform);
+        shadowTransform.setContentSize(this.tileSize, this.tileSize);
+        
+        // 优先尝试使用SpriteAtlas，失败则使用Label
+        if (this.mahjongAtlas && this.createSpriteBasedShadow(shadowNode, tileType)) {
+            // Sprite模式创建成功
+            (shadowNode as any).renderMode = 'Sprite';
+        } else {
+            this.createLabelBasedShadow(shadowNode, tileType);
+            (shadowNode as any).renderMode = 'Label';
+        }
+        
+        // 设置半透明效果
+        const uiOpacity = shadowNode.addComponent(UIOpacity);
+        uiOpacity.opacity = 150; // 半透明
+        
+        // 存储类型信息
+        (shadowNode as any).tileType = tileType;
+        
+        return shadowNode;
+    }
+    
+    /**
+     * 为虚影节点创建基于Sprite的渲染
+     * 
+     * @param shadowNode 虚影节点
+     * @param tileType 麻将类型索引
+     * @returns 是否创建成功
+     */
+    private createSpriteBasedShadow(shadowNode: Node, tileType: number): boolean {
+        try {
+            const spriteFrameName = this.getSpriteFrameName(tileType);
+            const spriteFrame = this.mahjongAtlas.getSpriteFrame(spriteFrameName);
+            
+            if (spriteFrame) {
+                const sprite = shadowNode.addComponent(Sprite);
+                sprite.spriteFrame = spriteFrame;
+                sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+                return true;
+            }
+        } catch (error) {
+            console.warn(`创建Sprite虚影失败 (类型 ${tileType}):`, error);
+        }
+        return false;
+    }
+    
+    /**
+     * 为虚影节点创建基于Label的渲染
+     * 
+     * @param shadowNode 虚影节点
+     * @param tileType 麻将类型索引
+     */
+    private createLabelBasedShadow(shadowNode: Node, tileType: number): void {
+        // 添加Label子节点并完全配置
+        const labelNode = new Node('Label');
+        const labelTransform = labelNode.addComponent(UITransform);
+        labelTransform.setContentSize(this.tileSize, this.tileSize);
+        const label = labelNode.addComponent(Label);
+        
+        // 完全配置Label内容
+        label.string = this.tileTypes[tileType];
+        label.fontSize = 32;
+        label.horizontalAlign = Label.HorizontalAlign.CENTER;
+        label.verticalAlign = Label.VerticalAlign.CENTER;
+        
+        // 设置对应类型的颜色
+        const colors = [
+            new Color(229, 62, 62),   // 🀄 中 - 红色
+            new Color(56, 161, 105),  // 🀅 发 - 绿色  
+            new Color(49, 130, 206),  // 🀆 白 - 蓝色
+            new Color(214, 158, 46),  // 🀇 一万 - 黄色
+            new Color(128, 90, 213),  // 🀈 二万 - 紫色
+            new Color(221, 107, 32),  // 🀉 三万 - 橙色
+            new Color(49, 151, 149),  // 🀊 四万 - 青色
+            new Color(236, 72, 153),  // 🀋 五万 - 粉色
+        ];
+        
+        if (tileType < colors.length) {
+            label.color = colors[tileType];
+        }
+        
+        shadowNode.addChild(labelNode);
+    }
+    
+    /**
      * 从对象池获取指定类型的虚影节点
      * 
      * @param tileType 麻将类型索引
      */
     private getShadowFromPool(tileType: number): Node | null {
-        return this.shadowPool.getShadowFromPool(tileType);
+        const typePool = this.shadowPoolByType.get(tileType);
+        if (!typePool) {
+            console.warn(`未找到类型 ${tileType} 的对象池`);
+            return null;
+        }
+        
+        // 查找未使用的节点
+        for (const shadow of typePool) {
+            if (!shadow.active) {
+                shadow.active = true;
+                return shadow;
+            }
+        }
+        
+        console.warn(`类型 ${tileType} 的对象池已满，创建临时节点`);
+        // 如果池子满了，创建临时节点
+        const tempShadow = this.createShadowNodeForType(tileType);
+        tempShadow.setParent(this.node.parent);
+        return tempShadow;
     }
     
     /**
      * 归还虚影节点到对应类型的对象池
      */
     private returnShadowToPool(shadowNode: Node) {
-        this.shadowPool.returnShadowToPool(shadowNode);
+        const tileType = (shadowNode as any).tileType;
+        
+        // 检查是否是对象池中的节点
+        let isPoolNode = false;
+        if (typeof tileType === 'number') {
+            const typePool = this.shadowPoolByType.get(tileType);
+            if (typePool) {
+                for (const poolNode of typePool) {
+                    if (poolNode === shadowNode) {
+                        isPoolNode = true;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        if (isPoolNode) {
+            // 重置节点状态
+            shadowNode.active = false;
+            shadowNode.setPosition(0, 0, 0);
+            
+            // 清除临时属性（保留tileType）
+            delete (shadowNode as any).relativeOffsetX;
+            delete (shadowNode as any).relativeOffsetY;
+            delete (shadowNode as any).originalWorldX;
+            delete (shadowNode as any).originalWorldY;
+        } else {
+            // 临时创建的节点直接销毁
+            shadowNode.destroy();
+        }
     }
     
     /**
@@ -840,10 +1103,33 @@ export class GameManager extends Component {
      * - 包含完整的安全检查
      */
     private clearAllHighlights() {
-        // 使用TileManager清除所有高亮
-        this.tileManager.clearAllHighlights();
+        console.log(`清除 ${this.highlightedTiles.length} 个高亮麻将`);
         
-        // 清空本地高亮列表
+        this.highlightedTiles.forEach((tileNode, index) => {
+            // 检查节点是否存在且有效
+            if (!tileNode) {
+                console.log(`高亮麻将 ${index} 为 null，跳过`);
+                return;
+            }
+            
+            if (!tileNode.isValid) {
+                console.log(`高亮麻将 ${index} 已失效，跳过`);
+                return;
+            }
+            
+            try {
+                // 使用简洁的清除高亮方法
+                this.clearTileHighlight(tileNode);
+            } catch (error) {
+                console.error(`清除高亮 ${index} 时发生错误:`, error);
+            }
+        });
+        
+        // 清理数组，移除无效节点
+        this.highlightedTiles = this.highlightedTiles.filter(node => node && node.isValid);
+        console.log(`所有高亮已清除，剩余有效节点: ${this.highlightedTiles.length}`);
+        
+        // 最终清空数组
         this.highlightedTiles = [];
     }
     
@@ -1164,12 +1450,7 @@ export class GameManager extends Component {
             
             // 从对应类型的对象池获取完全配置好的虚影节点
             const shadowNode = this.getShadowFromPool(tileData.type);
-            if (!shadowNode) {
-                console.warn(`无法获取类型 ${tileData.type} 的虚影节点`);
-                return;
-            }
-            
-            console.log(`✅ 获取虚影节点成功: ${shadowNode.name}, active: ${shadowNode.active}`);
+            if (!shadowNode) return;
             
             // 节点已经完全配置好，无需任何设置
             
@@ -1213,7 +1494,6 @@ export class GameManager extends Component {
             }
             
             shadow.setWorldPosition(shadowX, shadowY, 0);
-            console.log(`🔄 更新虚影位置: ${shadow.name} -> (${shadowX.toFixed(1)}, ${shadowY.toFixed(1)})`);
         });
     }
     
