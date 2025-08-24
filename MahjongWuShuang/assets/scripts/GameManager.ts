@@ -25,6 +25,7 @@ import { BoardManager } from './BoardManager';
 import { TileManager } from './TileManager';
 import { ShadowPool } from './ShadowPool';
 import { LogicManager } from './LogicManager';
+import { InputManager } from './InputManager';
 const { ccclass, property } = _decorator;
 
 /**
@@ -52,18 +53,15 @@ export class GameManager extends Component {
     private score: number = 0;                                           // 当前游戏得分
     
     // ==================== 拖拽系统 ====================
-    private isDragging: boolean = false;                                // 是否正在进行拖拽操作
-    private dragStartPos: {row: number, col: number, worldPos: Vec3} | null = null;  // 拖拽起始位置信息
-    private dragEndPos: {x: number, y: number} | null = null;          // 拖拽结束的屏幕坐标
-    private dragGroup: {row: number, col: number}[] = [];              // 参与拖拽的麻将组（推动效果）
-    private dragShadows: Node[] = [];                                   // 拖拽时显示的半透明虚影节点
-    private dragDirection: 'horizontal' | 'vertical' | null = null;    // 拖拽的主要方向
+    // 拖拽状态已迁移到InputManager
+    private dragShadows: Node[] = [];                                   // 拖拽时显示的半透明虚影节点（仍需要在GameManager中管理）
     
     // ==================== 模块管理器 ====================
     private boardManager: BoardManager = new BoardManager();
     private tileManager: TileManager = new TileManager();
     private shadowPool: ShadowPool = new ShadowPool();
     private logicManager: LogicManager = new LogicManager();
+    private inputManager: InputManager = new InputManager();
     
     onLoad() {
         console.log('GameManager onLoad');
@@ -72,19 +70,12 @@ export class GameManager extends Component {
     
     start() {
         console.log('GameManager start');
-        // 注册触摸事件
-        input.on(Input.EventType.TOUCH_START, this.onTouchStart, this);
-        input.on(Input.EventType.TOUCH_MOVE, this.onTouchMove, this);
-        input.on(Input.EventType.TOUCH_END, this.onTouchEnd, this);
-        input.on(Input.EventType.TOUCH_CANCEL, this.onTouchEnd, this);
+        // 触摸事件现在由InputManager处理
     }
     
     onDestroy() {
-        // 移除触摸事件
-        input.off(Input.EventType.TOUCH_START, this.onTouchStart, this);
-        input.off(Input.EventType.TOUCH_MOVE, this.onTouchMove, this);
-        input.off(Input.EventType.TOUCH_END, this.onTouchEnd, this);
-        input.off(Input.EventType.TOUCH_CANCEL, this.onTouchEnd, this);
+        // 销毁InputManager
+        this.inputManager.destroy();
     }
     
     /**
@@ -142,6 +133,22 @@ export class GameManager extends Component {
             tileManager: this.tileManager
         });
         
+        // 初始化输入管理器
+        this.inputManager.init({
+            onTileClick: (row: number, col: number) => this.handleTileClick(row, col),
+            onDragEnd: (startRow: number, startCol: number, endRow: number, endCol: number, dragState: any) => 
+                this.handleDragEnd(startRow, startCol, endRow, endCol, dragState),
+            screenToGrid: (screenPos: Vec2) => this.boardManager.screenToGrid(screenPos),
+            getTileData: (row: number, col: number) => this.boardManager.getTileData(row, col),
+            findDragGroupForSpecificDirection: (startRow: number, startCol: number, direction: 'left' | 'right' | 'up' | 'down') => 
+                this.logicManager.findDragGroupForSpecificDirection(startRow, startCol, direction),
+            createDragGroupShadows: (currentPos: Vec3, dragStartPos: {row: number, col: number, worldPos: Vec3}, dragGroup: {row: number, col: number}[]) => 
+                this.createDragGroupShadowsWithState(currentPos, dragStartPos, dragGroup),
+            updateDragGroupShadowsPosition: (currentPos: Vec3, dragDirection: 'horizontal' | 'vertical' | null) => 
+                this.updateDragGroupShadowsPosition(currentPos, dragDirection),
+            clearDragStates: () => this.clearDragStates()
+        });
+        
         console.log('✅ 模块管理器初始化完成');
     }
     
@@ -161,176 +168,7 @@ export class GameManager extends Component {
         this.shadowPool.returnShadowToPool(shadowNode);
     }
     
-    /**
-     * 触摸开始事件处理
-     * 
-     * 功能：
-     * - 将屏幕坐标转换为棋盘网格坐标
-     * - 检查触摸位置是否有有效麻将
-     * - 初始化拖拽状态和拖拽组
-     * - 为后续的拖拽或点击操作做准备
-     */
-    private onTouchStart(event: EventTouch) {
-        const touchPos = event.getUILocation();
-        console.log('=== 触摸开始 ===');
-        console.log('触摸坐标:', touchPos);
-        
-        // 获取点击的麻将位置
-        const gridPos = this.boardManager.screenToGrid(touchPos);
-        console.log('网格位置:', gridPos);
-        
-        if (gridPos && this.boardManager.getTileData(gridPos.row, gridPos.col)) {
-            console.log('开始拖拽准备');
-            // 记录拖拽开始位置，但不立即设置isDragging（需要移动一定距离才算拖拽）
-            this.dragStartPos = {
-                row: gridPos.row,
-                col: gridPos.col,
-                worldPos: new Vec3(touchPos.x, touchPos.y, 0)
-            };
-            
-            // 初始化拖动组
-            this.dragGroup = [{ row: gridPos.row, col: gridPos.col }];
-            console.log('初始拖动组:', this.dragGroup);
-        }
-    }
-    
-    /**
-     * 触摸移动事件处理
-     * 
-     * 功能：
-     * - 计算拖拽距离和方向（水平/垂直）
-     * - 根据拖拽方向确定拖拽组（推动效果）
-     * - 创建和更新拖拽虚影的位置
-     * - 实现轴向约束（水平拖拽时固定Y轴，垂直拖拽时固定X轴）
-     */
-    private onTouchMove(event: EventTouch) {
-        if (!this.dragStartPos) return;
-        
-        const touchPos = event.getUILocation();
-        const worldPos = new Vec3(touchPos.x, touchPos.y, 0);
-        
-        // 计算移动距离
-        const deltaX = worldPos.x - this.dragStartPos.worldPos.x;
-        const deltaY = worldPos.y - this.dragStartPos.worldPos.y;
-        const threshold = 30; // 拖拽阈值：超过30像素才认为是拖拽
-        
-        // 只有当移动距离超过阈值时，才认为是真正的拖拽操作
-        if (!this.isDragging && (Math.abs(deltaX) > threshold || Math.abs(deltaY) > threshold)) {
-            console.log('=== 开始拖拽 ===');
-            console.log('移动距离:', { deltaX, deltaY });
-            this.isDragging = true;
-            
-            // 根据移动方向确定拖拽方向
-            this.dragDirection = Math.abs(deltaX) > Math.abs(deltaY) ? 'horizontal' : 'vertical';
-            
-            // 确定具体的拖拽方向（左、右、上、下）
-            // 注意：在Cocos Creator中，Y轴向上为正，但触摸坐标Y向下为正
-            // 所以deltaY > 0 表示向下拖拽，deltaY < 0 表示向上拖拽
-            let specificDirection: 'left' | 'right' | 'up' | 'down';
-            if (this.dragDirection === 'horizontal') {
-                specificDirection = deltaX > 0 ? 'right' : 'left';
-                console.log(`水平拖拽判断: deltaX=${deltaX}, ${deltaX > 0 ? 'deltaX > 0 = right' : 'deltaX < 0 = left'}`);
-            } else {
-                specificDirection = deltaY > 0 ? 'down' : 'up';
-                console.log(`垂直拖拽判断: deltaY=${deltaY}, ${deltaY > 0 ? 'deltaY > 0 = down' : 'deltaY < 0 = up'}`);
-            }
-            
-            console.log('方向判断详情:', {
-                dragDirection: this.dragDirection,
-                deltaX,
-                deltaY,
-                '水平判断': deltaX > 0 ? 'deltaX > 0 = right' : 'deltaX < 0 = left',
-                '垂直判断': deltaY > 0 ? 'deltaY > 0 = down' : 'deltaY < 0 = up',
-                specificDirection
-            });
-            
-            console.log('拖拽方向:', this.dragDirection, '具体方向:', specificDirection);
-            
-            // 根据具体拖拽方向更新拖动组
-            this.dragGroup = this.logicManager.findDragGroupForSpecificDirection(this.dragStartPos.row, this.dragStartPos.col, specificDirection);
-            console.log('更新后的拖动组:', this.dragGroup);
-            
-            // 创建拖动组的虚影
-            this.createDragGroupShadows(worldPos);
-        }
-        
-        // 如果正在拖拽，更新虚影位置
-        if (this.isDragging) {
-            this.updateDragGroupShadowsPosition(worldPos);
-        }
-        
-        // 更新拖拽结束位置
-        this.dragEndPos = { x: touchPos.x, y: touchPos.y };
-    }
-    
-    /**
-     * 触摸结束事件处理
-     * 
-     * 功能：
-     * - 判断是点击还是拖拽操作
-     * - 点击：执行麻将选择和消除逻辑
-     * - 拖拽：计算目标位置并执行移动
-     * - 清理拖拽状态和虚影节点
-     */
-    private onTouchEnd(event: EventTouch) {
-        console.log('=== 拖动结束 ===');
-        console.log('当前拖拽状态:', {
-            isDragging: this.isDragging,
-            dragStartPos: this.dragStartPos,
-            dragGroup: this.dragGroup,
-            dragDirection: this.dragDirection
-        });
-        
-        // 保存拖拽状态，因为clearDragStates会清除它们
-        const wasDragging = this.isDragging;
-        const dragStartPos = this.dragStartPos;
-        
-        this.clearDragStates();
-        
-        if (wasDragging && dragStartPos) {
-            const touchPos = event.getUILocation();
-            const worldPos = new Vec3(touchPos.x, touchPos.y, 0);
-            
-            // 计算移动距离
-            const deltaX = worldPos.x - dragStartPos.worldPos.x;
-            const deltaY = worldPos.y - dragStartPos.worldPos.y;
-            const threshold = 30;
-            
-            console.log('拖拽结束计算:', {
-                startPos: dragStartPos.worldPos,
-                endPos: worldPos,
-                deltaX,
-                deltaY,
-                threshold
-            });
-            
-            if (Math.abs(deltaX) < threshold && Math.abs(deltaY) < threshold) {
-                // 移动距离小，当作点击处理
-                console.log('移动距离小于阈值，当作点击处理');
-                this.handleTileClick(dragStartPos.row, dragStartPos.col);
-            } else {
-                // 处理拖拽移动
-                console.log('移动距离超过阈值，处理拖拽移动');
-                const targetGridPos = this.boardManager.screenToGrid(new Vec2(touchPos.x, touchPos.y));
-                console.log('目标网格位置:', targetGridPos);
-                
-                if (targetGridPos) {
-                    this.handleDragEnd(dragStartPos.row, dragStartPos.col, targetGridPos.row, targetGridPos.col);
-                } else {
-                    console.log('无法获取有效的目标网格位置');
-                }
-            }
-        } else if (dragStartPos) {
-            // 没有拖拽，当作点击处理
-            console.log('没有进入拖拽状态，当作点击处理');
-            this.handleTileClick(dragStartPos.row, dragStartPos.col);
-        } else {
-            console.log('没有拖拽起始位置，忽略');
-        }
-        
-        this.resetDragState();
-        console.log('=== 拖动结束处理完成 ===');
-    }
+    // 触摸事件处理已迁移到InputManager
     
     /**
      * 处理麻将点击事件 - 参考web版本实现
@@ -544,46 +382,34 @@ export class GameManager extends Component {
     }
     
     /**
-     * 重置拖拽状态
+     * 重置拖拽状态（现在只清理虚影，状态由InputManager管理）
      */
     private resetDragState() {
-        this.isDragging = false;
-        this.dragStartPos = null;
-        this.dragEndPos = null;
-        this.dragGroup = [];
-        this.dragDirection = null;
         this.clearDragShadows();
     }
     
     /**
-     * 清除拖拽状态
+     * 清除拖拽状态（现在只清理虚影，状态由InputManager管理）
      */
     private clearDragStates() {
         this.clearDragShadows();
-        this.isDragging = false;
-        this.dragDirection = null;
     }
     
+    // 原createDragGroupShadows方法已删除，现在使用createDragGroupShadowsWithState
+    
     /**
-     * 创建拖拽虚影
-     * 
-     * 功能：
-     * - 为拖拽组中的每个麻将创建半透明虚影
-     * - 虚影跟随鼠标移动，但受轴向约束
-     * - 水平拖拽时虚影Y坐标固定，垂直拖拽时虚影X坐标固定
-     * 
-     * @param currentPos 当前鼠标位置
+     * 使用外部状态创建拖拽组虚影（InputManager回调专用）
      */
-    private createDragGroupShadows(currentPos: Vec3) {
+    private createDragGroupShadowsWithState(currentPos: Vec3, dragStartPos: {row: number, col: number, worldPos: Vec3}, dragGroup: {row: number, col: number}[]) {
         this.clearDragShadows(); // 清除现有虚影
-        if (!this.dragStartPos || this.dragGroup.length === 0) return;
+        if (!dragStartPos || dragGroup.length === 0) return;
         
-        const startTileNode = this.boardManager.getTileNode(this.dragStartPos.row, this.dragStartPos.col);
+        const startTileNode = this.boardManager.getTileNode(dragStartPos.row, dragStartPos.col);
         if (!startTileNode) return;
         
         const startTileWorldPos = startTileNode.worldPosition;
         
-        this.dragGroup.forEach(tileGrid => {
+        dragGroup.forEach(tileGrid => {
             const originalTileNode = this.boardManager.getTileNode(tileGrid.row, tileGrid.col);
             if (!originalTileNode) return;
             
@@ -599,14 +425,12 @@ export class GameManager extends Component {
             
             console.log(`✅ 获取虚影节点成功: ${shadowNode.name}, active: ${shadowNode.active}`);
             
-            // 节点已经完全配置好，无需任何设置
-            
             // 计算相对偏移
             const originalTileWorldPos = originalTileNode.worldPosition;
             const relativeOffsetX = originalTileWorldPos.x - startTileWorldPos.x;
             const relativeOffsetY = originalTileWorldPos.y - startTileWorldPos.y;
             
-            // 存储相对偏移信息
+            // 存储相对偏移信息到虚影节点，用于后续位置更新
             (shadowNode as any).relativeOffsetX = relativeOffsetX;
             (shadowNode as any).relativeOffsetY = relativeOffsetY;
             (shadowNode as any).originalWorldX = originalTileWorldPos.x;
@@ -615,14 +439,14 @@ export class GameManager extends Component {
             this.dragShadows.push(shadowNode);
         });
         
-        this.updateDragGroupShadowsPosition(currentPos);
+        this.updateDragGroupShadowsPosition(currentPos, null); // 创建时无方向约束
     }
     
     /**
      * 更新拖动组虚影位置
      */
-    private updateDragGroupShadowsPosition(currentPos: Vec3) {
-        if (!this.dragStartPos || this.dragGroup.length === 0 || this.dragShadows.length === 0) return;
+    private updateDragGroupShadowsPosition(currentPos: Vec3, dragDirection: 'horizontal' | 'vertical' | null) {
+        if (this.dragShadows.length === 0) return;
         
         this.dragShadows.forEach(shadow => {
             const relativeOffsetX = (shadow as any).relativeOffsetX || 0;
@@ -634,9 +458,9 @@ export class GameManager extends Component {
             let shadowY = currentPos.y + relativeOffsetY;
             
             // 根据拖拽方向约束移动
-            if (this.dragDirection === 'horizontal') {
+            if (dragDirection === 'horizontal') {
                 shadowY = originalWorldY; // 固定Y坐标
-            } else if (this.dragDirection === 'vertical') {
+            } else if (dragDirection === 'vertical') {
                 shadowX = originalWorldX; // 固定X坐标
             }
             
@@ -671,11 +495,11 @@ export class GameManager extends Component {
      * @param endRow 拖拽结束行
      * @param endCol 拖拽结束列
      */
-    private handleDragEnd(startRow: number, startCol: number, endRow: number, endCol: number) {
+    private handleDragEnd(startRow: number, startCol: number, endRow: number, endCol: number, dragState: any) {
         console.log('=== 处理拖拽结束 ===');
         console.log(`起始位置: (${startRow}, ${startCol})`);
         console.log(`结束位置: (${endRow}, ${endCol})`);
-        console.log('当前拖动组:', this.dragGroup);
+        console.log('当前拖动组:', dragState.dragGroup);
         
         // 计算移动方向和距离
         const deltaRow = endRow - startRow;
@@ -700,13 +524,13 @@ export class GameManager extends Component {
             console.log('开始执行麻将移动逻辑');
             
             // 检查移动后是否有消除机会
-            const canMove = this.logicManager.checkIfCanMove(this.dragGroup, direction, steps);
+            const canMove = this.logicManager.checkIfCanMove(dragState.dragGroup, direction, steps);
             console.log('移动可行性检查:', canMove);
             
             if (canMove) {
                 // 执行移动
                 console.log('执行移动操作');
-                this.executeTileMove(startRow, startCol, direction, steps);
+                this.executeTileMove(startRow, startCol, direction, steps, dragState.dragGroup);
                 
                 // 检查移动后的消除机会
                 setTimeout(() => {
@@ -742,12 +566,12 @@ export class GameManager extends Component {
     /**
      * 执行麻将移动
      */
-    private executeTileMove(startRow: number, startCol: number, direction: string, steps: number) {
+    private executeTileMove(startRow: number, startCol: number, direction: string, steps: number, dragGroup: {row: number, col: number}[]) {
         console.log(`执行移动: (${startRow}, ${startCol}) ${direction} ${steps}步`);
-        console.log('当前拖动组:', this.dragGroup);
+        console.log('当前拖动组:', dragGroup);
         
         // 使用统一的方法计算新位置
-        const newPositions = this.logicManager.calculateNewPositions(this.dragGroup, direction, steps);
+        const newPositions = this.logicManager.calculateNewPositions(dragGroup, direction, steps);
         console.log('计算的新位置:', newPositions);
         
         // 检查新位置是否有冲突
@@ -756,7 +580,7 @@ export class GameManager extends Component {
         
         if (!hasConflict) {
             // 执行实际移动
-            this.performTileMovement(this.dragGroup, newPositions);
+            this.performTileMovement(dragGroup, newPositions, {row: startRow, col: startCol});
         } else {
             console.log('位置有冲突，移动失败');
         }
@@ -767,7 +591,7 @@ export class GameManager extends Component {
     /**
      * 执行实际的麻将移动
      */
-    private performTileMovement(oldPositions: {row: number, col: number}[], newPositions: {row: number, col: number}[]) {
+    private performTileMovement(oldPositions: {row: number, col: number}[], newPositions: {row: number, col: number}[], dragStartPos?: {row: number, col: number}) {
         console.log('执行实际移动');
         console.log('旧位置:', oldPositions);
         console.log('新位置:', newPositions);
@@ -788,7 +612,7 @@ export class GameManager extends Component {
             newPositions: [...newPositions],
             tileData: [],
             tileNodes: [],
-            originalDragPosition: this.dragStartPos ? {row: this.dragStartPos.row, col: this.dragStartPos.col} : null
+            originalDragPosition: dragStartPos || null
         };
         
         // 保存移动记录到LogicManager
