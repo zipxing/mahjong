@@ -65,9 +65,6 @@ export class GameManager extends Component {
     private shadowPool: ShadowPool = new ShadowPool();
     private logicManager: LogicManager = new LogicManager();
     
-    // ==================== 移动历史与智能回退 ====================
-    // 移动历史现在完全由LogicManager管理
-    
     onLoad() {
         console.log('GameManager onLoad');
         this.init();
