@@ -47,7 +47,7 @@ export class GameManager extends Component {
     mahjongAtlas: SpriteAtlas = null!;  // 麻将图集（用于DrawCall合批）
     
     // ==================== 游戏配置 ====================
-    private boardSize: number = 8;  // 棋盘大小：8x8网格
+    // 棋盘大小已迁移到 BoardManager
     
     // ==================== 游戏状态 ====================
     private selectedTile: {row: number, col: number, node: Node} | null = null;  // 当前选中的麻将
@@ -152,7 +152,6 @@ export class GameManager extends Component {
         this.lastMoveRecord = null;
         console.log('游戏状态已重置');
         
-        this.createBoard();
         this.generateSimplePairs();
         this.renderBoard();
         
@@ -178,22 +177,12 @@ export class GameManager extends Component {
     }
     
     /**
-     * 创建空白棋盘
-     */
-    private createBoard() {
-        // 使用BoardManager创建棋盘，但保持原有的本地引用以兼容现有代码
-        // 初始化游戏数据 - 直接在BoardManager中初始化
-        // 数据初始化已迁移到BoardManager
-        
-        console.log(`创建了 ${this.boardSize}x${this.boardSize} 的棋盘`);
-    }
-    
-    /**
      * 生成配对麻将 - 确保每种类型都有偶数个
      */
     private generateSimplePairs() {
         const tiles: TileData[] = [];
-        const totalTiles = this.boardSize * this.boardSize; // 64个位置
+        const boardSize = this.boardManager.getBoardSize();
+        const totalTiles = boardSize * boardSize; // 64个位置
         
         // 计算每种类型的数量，确保总数为偶数且能被类型数整除
         const tilesPerType = Math.floor(totalTiles / this.tileManager.getTileTypes().length);
@@ -237,20 +226,20 @@ export class GameManager extends Component {
         
         // 填充到棋盘
         let tileIndex = 0;
-        for (let row = 0; row < this.boardSize; row++) {
-            for (let col = 0; col < this.boardSize; col++) {
+        for (let row = 0; row < boardSize; row++) {
+            for (let col = 0; col < boardSize; col++) {
                 // 直接设置到BoardManager
                 this.boardManager.setTileData(row, col, tiles[tileIndex++]);
             }
         }
         
-        console.log(`生成了 ${tiles.length} 个麻将，填满 ${this.boardSize}x${this.boardSize} 棋盘`);
+        console.log(`生成了 ${tiles.length} 个麻将，填满 ${boardSize}x${boardSize} 棋盘`);
         
         // 打印棋盘布局用于调试
         console.log('=== 棋盘布局 ===');
-        for (let row = 0; row < this.boardSize; row++) {
+        for (let row = 0; row < boardSize; row++) {
             let rowStr = `第${row}行: `;
-            for (let col = 0; col < this.boardSize; col++) {
+            for (let col = 0; col < boardSize; col++) {
                 const tile = this.boardManager.getTileData(row, col);
                 rowStr += tile ? `${tile.symbol}(${tile.type}) ` : 'null ';
             }
@@ -269,18 +258,19 @@ export class GameManager extends Component {
         this.gameBoard.removeAllChildren();
         
         // 计算起始位置
+        const boardSize = this.boardManager.getBoardSize();
         const tileSize = this.boardManager.getTileSize();
         const tileGap = this.boardManager.getTileGap();
-        const boardWidth = this.boardSize * tileSize + (this.boardSize - 1) * tileGap;
-        const boardHeight = this.boardSize * tileSize + (this.boardSize - 1) * tileGap;
+        const boardWidth = boardSize * tileSize + (boardSize - 1) * tileGap;
+        const boardHeight = boardSize * tileSize + (boardSize - 1) * tileGap;
         const startX = -boardWidth / 2 + tileSize / 2;
         const startY = boardHeight / 2 - tileSize / 2;
         
         let tilesCreated = 0;
         
         // 创建麻将节点
-        for (let row = 0; row < this.boardSize; row++) {
-            for (let col = 0; col < this.boardSize; col++) {
+        for (let row = 0; row < boardSize; row++) {
+            for (let col = 0; col < boardSize; col++) {
                 const tile = this.boardManager.getTileData(row, col);
                 if (tile) {
                     // 使用TileManager创建麻将节点
@@ -582,7 +572,7 @@ export class GameManager extends Component {
         console.log('高亮选中麻将完成');
         
         console.log('开始高亮可消除麻将...');
-        this.tileManager.highlightEliminable(row, col, this.boardManager, this.boardSize, (r1, c1, r2, c2) => this.canEliminate(r1, c1, r2, c2));
+        this.tileManager.highlightEliminable(row, col, this.boardManager, this.boardManager.getBoardSize(), (r1, c1, r2, c2) => this.canEliminate(r1, c1, r2, c2));
         console.log('高亮可消除麻将完成');
         
         console.log('=== 选择麻将完成 ===');
@@ -593,10 +583,11 @@ export class GameManager extends Component {
      */
     private getEliminableOptionsForTile(row: number, col: number): Array<{row1: number, col1: number, row2: number, col2: number}> {
         const options: Array<{row1: number, col1: number, row2: number, col2: number}> = [];
+        const boardSize = this.boardManager.getBoardSize();
         
         // 遍历整个棋盘，找出所有可以与当前麻将消除的位置
-        for (let r = 0; r < this.boardSize; r++) {
-            for (let c = 0; c < this.boardSize; c++) {
+        for (let r = 0; r < boardSize; r++) {
+            for (let c = 0; c < boardSize; c++) {
                 if (r === row && c === col) continue; // 跳过自己
                 
                 if (this.canEliminate(row, col, r, c)) {
@@ -922,7 +913,7 @@ export class GameManager extends Component {
                 
             case 'right':
                 // 往右拖拽：带动右边的连续麻将（推动效果）
-                for (let c = startCol + 1; c < this.boardSize; c++) {
+                for (let c = startCol + 1; c < this.boardManager.getBoardSize(); c++) {
                     if (this.boardManager.getTileData(startRow, c) !== null) {
                         group.push({ row: startRow, col: c });
                         console.log(`往右拖拽，添加右边麻将: (${startRow}, ${c})`);
@@ -934,7 +925,7 @@ export class GameManager extends Component {
                 
             case 'up':
                 // 往上拖拽：推动下边的连续麻将向上移动（推动效果）
-                for (let r = startRow + 1; r < this.boardSize; r++) {
+                for (let r = startRow + 1; r < this.boardManager.getBoardSize(); r++) {
                     if (this.boardManager.getTileData(r, startCol) !== null) {
                         group.push({ row: r, col: startCol });
                         console.log(`往上拖拽，添加下边麻将: (${r}, ${startCol})`);
@@ -1200,7 +1191,7 @@ export class GameManager extends Component {
             console.log(`  检查路径点 ${step}/${steps}: (${checkRow}, ${checkCol})`);
             
             // 检查是否超出棋盘边界
-            if (checkRow < 0 || checkRow >= this.boardSize || checkCol < 0 || checkCol >= this.boardSize) {
+            if (checkRow < 0 || checkRow >= this.boardManager.getBoardSize() || checkCol < 0 || checkCol >= this.boardManager.getBoardSize()) {
                 console.log(`  ❌ 路径超出边界: (${checkRow}, ${checkCol})`);
                 return false;
             }
@@ -1246,13 +1237,13 @@ export class GameManager extends Component {
                     newCol = Math.max(0, tile.col - steps);
                     break;
                 case 'right':
-                    newCol = Math.min(this.boardSize - 1, tile.col + steps);
+                    newCol = Math.min(this.boardManager.getBoardSize() - 1, tile.col + steps);
                     break;
                 case 'up':
                     newRow = Math.max(0, tile.row - steps);
                     break;
                 case 'down':
-                    newRow = Math.min(this.boardSize - 1, tile.row + steps);
+                    newRow = Math.min(this.boardManager.getBoardSize() - 1, tile.row + steps);
                     break;
             }
             
@@ -1291,7 +1282,7 @@ export class GameManager extends Component {
     private checkPositionConflicts(newPositions: {row: number, col: number}[]): boolean {
         for (const pos of newPositions) {
             // 检查是否超出边界
-            if (pos.row < 0 || pos.row >= this.boardSize || pos.col < 0 || pos.col >= this.boardSize) {
+            if (pos.row < 0 || pos.row >= this.boardManager.getBoardSize() || pos.col < 0 || pos.col >= this.boardManager.getBoardSize()) {
                 console.log(`位置超出边界: (${pos.row}, ${pos.col})`);
                 return true;
             }
@@ -1344,8 +1335,8 @@ export class GameManager extends Component {
         oldPositions.forEach((pos, index) => {
             // 验证位置有效性
             if (!pos || typeof pos.row !== 'number' || typeof pos.col !== 'number' ||
-                pos.row < 0 || pos.row >= this.boardSize || 
-                pos.col < 0 || pos.col >= this.boardSize) {
+                pos.row < 0 || pos.row >= this.boardManager.getBoardSize() || 
+                pos.col < 0 || pos.col >= this.boardManager.getBoardSize()) {
                 console.error(`无效的旧位置 ${index}:`, pos);
                 return;
             }
@@ -1394,8 +1385,8 @@ export class GameManager extends Component {
             if (tileNodes[index]) {
                 const tileSize = this.boardManager.getTileSize();
                 const tileGap = this.boardManager.getTileGap();
-                const boardWidth = this.boardSize * tileSize + (this.boardSize - 1) * tileGap;
-                const boardHeight = this.boardSize * tileSize + (this.boardSize - 1) * tileGap;
+                const boardWidth = this.boardManager.getBoardSize() * tileSize + (this.boardManager.getBoardSize() - 1) * tileGap;
+                const boardHeight = this.boardManager.getBoardSize() * tileSize + (this.boardManager.getBoardSize() - 1) * tileGap;
                 const startX = -boardWidth / 2 + tileSize / 2;
                 const startY = boardHeight / 2 - tileSize / 2;
                 
@@ -1452,8 +1443,8 @@ export class GameManager extends Component {
         const eliminablePairs: Array<{row1: number, col1: number, row2: number, col2: number}> = [];
         
         // 遍历整个棋盘，寻找能与原始拖动麻将消除的其他麻将
-        for (let r = 0; r < this.boardSize; r++) {
-            for (let c = 0; c < this.boardSize; c++) {
+        for (let r = 0; r < this.boardManager.getBoardSize(); r++) {
+            for (let c = 0; c < this.boardManager.getBoardSize(); c++) {
                 // 跳过空位置和自己
                 if (!this.boardManager.getTileData(r, c) || (r === originalDragTileNewPos.row && c === originalDragTileNewPos.col)) continue;
                 
@@ -1509,8 +1500,8 @@ export class GameManager extends Component {
             console.log(`检查移动到 (${newPos.row}, ${newPos.col}) 的麻将的消除机会`);
             
             // 遍历整个棋盘，寻找能与这个移动麻将消除的其他麻将
-            for (let r = 0; r < this.boardSize; r++) {
-                for (let c = 0; c < this.boardSize; c++) {
+            for (let r = 0; r < this.boardManager.getBoardSize(); r++) {
+                for (let c = 0; c < this.boardManager.getBoardSize(); c++) {
                     // 跳过空位置和自己
                     if (!this.boardManager.getTileData(r, c) || (r === newPos.row && c === newPos.col)) continue;
                     
@@ -1760,8 +1751,8 @@ export class GameManager extends Component {
             console.log('第一步：清除新位置');
             record.newPositions.forEach((pos, index) => {
                 if (pos && typeof pos.row === 'number' && typeof pos.col === 'number' &&
-                    pos.row >= 0 && pos.row < this.boardSize && 
-                    pos.col >= 0 && pos.col < this.boardSize) {
+                    pos.row >= 0 && pos.row < this.boardManager.getBoardSize() && 
+                    pos.col >= 0 && pos.col < this.boardManager.getBoardSize()) {
                     
                     console.log(`清除新位置 (${pos.row}, ${pos.col})`);
                     this.boardManager.clearPosition(pos.row, pos.col);
@@ -1774,8 +1765,8 @@ export class GameManager extends Component {
             console.log('第二步：恢复旧位置');
             record.oldPositions.forEach((pos, index) => {
                 if (!pos || typeof pos.row !== 'number' || typeof pos.col !== 'number' ||
-                    pos.row < 0 || pos.row >= this.boardSize || 
-                    pos.col < 0 || pos.col >= this.boardSize) {
+                    pos.row < 0 || pos.row >= this.boardManager.getBoardSize() || 
+                    pos.col < 0 || pos.col >= this.boardManager.getBoardSize()) {
                     console.error(`无效的旧位置 ${index}:`, pos);
                     return;
                 }
@@ -1796,8 +1787,8 @@ export class GameManager extends Component {
                     try {
                         const tileSize = this.boardManager.getTileSize();
                         const tileGap = this.boardManager.getTileGap();
-                        const boardWidth = this.boardSize * tileSize + (this.boardSize - 1) * tileGap;
-                        const boardHeight = this.boardSize * tileSize + (this.boardSize - 1) * tileGap;
+                        const boardWidth = this.boardManager.getBoardSize() * tileSize + (this.boardManager.getBoardSize() - 1) * tileGap;
+                        const boardHeight = this.boardManager.getBoardSize() * tileSize + (this.boardManager.getBoardSize() - 1) * tileGap;
                         const startX = -boardWidth / 2 + tileSize / 2;
                         const startY = boardHeight / 2 - tileSize / 2;
                         
