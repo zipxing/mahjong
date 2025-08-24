@@ -66,13 +66,7 @@ export class GameManager extends Component {
     private logicManager: LogicManager = new LogicManager();
     
     // ==================== 移动历史与智能回退 ====================
-    private lastMoveRecord: {
-        oldPositions: {row: number, col: number}[],      // 移动前的所有位置
-        newPositions: {row: number, col: number}[],      // 移动后的所有位置
-        tileData: (TileData | null)[],                   // 移动的麻将数据备份
-        tileNodes: (Node | null)[],                      // 移动的麻将节点备份
-        originalDragPosition: {row: number, col: number} | null  // 最初被拖拽的麻将位置（用于智能消除判断）
-    } | null = null;
+    // 移动历史现在完全由LogicManager管理
     
     onLoad() {
         console.log('GameManager onLoad');
@@ -121,7 +115,6 @@ export class GameManager extends Component {
         this.selectedTile = null;
         this.score = 0;
         // highlightedTiles 已迁移到 TileManager
-        this.lastMoveRecord = null;
         this.logicManager.clearLastMoveRecord();
         console.log('游戏状态已重置');
         
@@ -798,7 +791,7 @@ export class GameManager extends Component {
         }
         
         // 保存移动记录用于回退
-        this.lastMoveRecord = {
+        const moveRecord = {
             oldPositions: [...oldPositions],
             newPositions: [...newPositions],
             tileData: [],
@@ -806,8 +799,8 @@ export class GameManager extends Component {
             originalDragPosition: this.dragStartPos ? {row: this.dragStartPos.row, col: this.dragStartPos.col} : null
         };
         
-        // 同步移动记录到LogicManager
-        this.logicManager.saveLastMoveRecord(this.lastMoveRecord);
+        // 保存移动记录到LogicManager
+        this.logicManager.saveLastMoveRecord(moveRecord);
         
         console.log('保存移动记录，旧位置:', oldPositions);
         console.log('保存移动记录，新位置:', newPositions);
@@ -830,8 +823,8 @@ export class GameManager extends Component {
             console.log(`麻将节点:`, tileNodes[index] ? '存在' : '不存在');
             
             // 保存到移动记录（深拷贝数据）
-            this.lastMoveRecord!.tileData[index] = tileData[index];
-            this.lastMoveRecord!.tileNodes[index] = tileNodes[index];
+            moveRecord.tileData[index] = tileData[index];
+            moveRecord.tileNodes[index] = tileNodes[index];
             
             // 验证保存的数据
             if (!tileData[index]) {
@@ -848,14 +841,17 @@ export class GameManager extends Component {
         });
         
         // 验证移动记录完整性
-        if (this.lastMoveRecord.oldPositions.length !== this.lastMoveRecord.tileData.length ||
-            this.lastMoveRecord.oldPositions.length !== this.lastMoveRecord.tileNodes.length) {
+        if (moveRecord.oldPositions.length !== moveRecord.tileData.length ||
+            moveRecord.oldPositions.length !== moveRecord.tileNodes.length) {
             console.error('移动记录数据不完整，清除记录');
-            this.lastMoveRecord = null;
+            this.logicManager.clearLastMoveRecord();
             return;
         }
         
-        console.log('移动记录保存完成:', this.lastMoveRecord);
+        // 更新LogicManager中的移动记录
+        this.logicManager.saveLastMoveRecord(moveRecord);
+        
+        console.log('移动记录保存完成:', moveRecord);
         
         // 设置新位置
         newPositions.forEach((pos, index) => {
@@ -898,12 +894,13 @@ export class GameManager extends Component {
     private checkEliminationAfterMove() {
         console.log('检查移动后是否有消除机会');
         
-        if (!this.lastMoveRecord) {
+        const lastMoveRecord = this.logicManager.getLastMoveRecord();
+        if (!lastMoveRecord) {
             console.log('没有移动记录，无法检查消除');
             return;
         }
         
-        if (!this.lastMoveRecord.originalDragPosition) {
+        if (!lastMoveRecord.originalDragPosition) {
             console.log('没有保存原始拖动位置，检查所有移动麻将的消除机会');
             // 如果没有原始拖动位置，回退到检查所有移动麻将的逻辑
             this.checkAllMovedTilesElimination();
@@ -948,7 +945,8 @@ export class GameManager extends Component {
     private checkAllMovedTilesElimination() {
         console.log('检查所有移动麻将的消除机会');
         
-        if (!this.lastMoveRecord) {
+        const lastMoveRecord = this.logicManager.getLastMoveRecord();
+        if (!lastMoveRecord) {
             console.log('没有移动记录');
             return;
         }
@@ -1038,19 +1036,20 @@ export class GameManager extends Component {
         // 清除之前的高亮
         this.tileManager.clearAllHighlights();
         
-        if (!this.lastMoveRecord) {
+        const lastMoveRecord = this.logicManager.getLastMoveRecord();
+        if (!lastMoveRecord) {
             console.log('没有移动记录，无法高亮');
             return;
         }
         
-        console.log('移动记录:', this.lastMoveRecord);
+        console.log('移动记录:', lastMoveRecord);
         
         // 收集移动的麻将位置和它们的消除伙伴位置
         const movedPositions = new Set<string>();
         const partnerPositions = new Set<string>();
         
         // 标记移动的麻将位置
-        this.lastMoveRecord.newPositions.forEach(pos => {
+        lastMoveRecord.newPositions.forEach(pos => {
             const posStr = `${pos.row}-${pos.col}`;
             movedPositions.add(posStr);
             console.log(`标记移动位置: ${posStr}`);
@@ -1127,25 +1126,24 @@ export class GameManager extends Component {
     private revertLastMove() {
         console.log('开始回退上次移动');
         
-        if (!this.lastMoveRecord) {
+        const record = this.logicManager.getLastMoveRecord();
+        if (!record) {
             console.log('没有移动记录，无法回退');
             return;
         }
-        
-        const record = this.lastMoveRecord;
         console.log('回退移动记录:', record);
         
         // 验证记录完整性
         if (!record.oldPositions || !record.newPositions || !record.tileData || !record.tileNodes) {
             console.error('移动记录数据不完整，无法安全回退');
-            this.lastMoveRecord = null;
+            this.logicManager.clearLastMoveRecord();
             return;
         }
         
         if (record.oldPositions.length !== record.tileData.length || 
             record.oldPositions.length !== record.tileNodes.length) {
             console.error('移动记录数据长度不一致，无法安全回退');
-            this.lastMoveRecord = null;
+            this.logicManager.clearLastMoveRecord();
             return;
         }
         
@@ -1234,7 +1232,6 @@ export class GameManager extends Component {
             this.tileManager.clearAllHighlights();
         } finally {
             // 无论成功还是失败，都清除移动记录
-            this.lastMoveRecord = null;
             this.logicManager.clearLastMoveRecord();
             console.log('移动记录已清除');
         }
