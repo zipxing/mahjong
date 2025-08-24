@@ -46,15 +46,9 @@ export class GameManager extends Component {
     @property(SpriteAtlas)
     mahjongAtlas: SpriteAtlas = null!;  // 麻将图集（用于DrawCall合批）
     
-    // ==================== 游戏配置 ====================
-    // 棋盘大小已迁移到 BoardManager
-    
     // ==================== 游戏状态 ====================
     private selectedTile: {row: number, col: number, node: Node} | null = null;  // 当前选中的麻将
     private score: number = 0;                                           // 当前游戏得分
-    
-    // ==================== 高亮显示 ====================
-    // 高亮显示已迁移到 TileManager
     
     // ==================== 拖拽系统 ====================
     private isDragging: boolean = false;                                // 是否正在进行拖拽操作
@@ -82,30 +76,6 @@ export class GameManager extends Component {
         console.log('GameManager onLoad');
         this.init();
     }
-    
-    /**
-     * 设置麻将高亮效果（简洁版）
-     * 
-     * 功能：
-     * - 通过缩放效果增强视觉反馈
-     * - 更简洁美观的高亮方式
-     * 
-     * @param tileNode 目标麻将节点
-     * @param scale 缩放比例
-     */
-    /*
-    // 🚫 【已注释】此方法已被 TileManager.setTileHighlight() 替代
-    private setTileHighlight(tileNode: Node, type: 'selected' | 'eliminable' = 'selected') {
-        throw new Error('此方法已废弃，请直接使用 TileManager.setTileHighlight() 替代');
-    }
-    */
-    
-    /*
-    // 🚫 【已注释】此方法已被 TileManager.clearTileHighlight() 替代
-    private clearTileHighlight(tileNode: Node) {
-        throw new Error('此方法已废弃，请直接使用 TileManager.clearTileHighlight() 替代');
-    }
-    */
     
     start() {
         console.log('GameManager start');
@@ -152,7 +122,7 @@ export class GameManager extends Component {
         this.lastMoveRecord = null;
         console.log('游戏状态已重置');
         
-        this.generateSimplePairs();
+        this.boardManager.generateSimplePairs(this.tileManager);
         this.renderBoard();
         
         console.log('游戏初始化完成！');
@@ -174,78 +144,6 @@ export class GameManager extends Component {
         this.shadowPool.init(this.mahjongAtlas, this.node.parent || this.node);
         
         console.log('✅ 模块管理器初始化完成');
-    }
-    
-    /**
-     * 生成配对麻将 - 确保每种类型都有偶数个
-     */
-    private generateSimplePairs() {
-        const tiles: TileData[] = [];
-        const boardSize = this.boardManager.getBoardSize();
-        const totalTiles = boardSize * boardSize; // 64个位置
-        
-        // 计算每种类型的数量，确保总数为偶数且能被类型数整除
-        const tilesPerType = Math.floor(totalTiles / this.tileManager.getTileTypes().length);
-        const adjustedTilesPerType = tilesPerType % 2 === 0 ? tilesPerType : tilesPerType - 1;
-        
-        console.log(`8x8棋盘，每种类型生成 ${adjustedTilesPerType} 个麻将`);
-        
-        // 为每种类型生成偶数个麻将
-        const tileTypes = this.tileManager.getTileTypes();
-        for (let i = 0; i < tileTypes.length; i++) {
-            for (let j = 0; j < adjustedTilesPerType; j++) {
-                tiles.push({
-                    type: i,
-                    symbol: tileTypes[i],
-                    id: `${i}-${j}`
-                });
-            }
-        }
-        
-        // 简单洗牌
-        for (let i = tiles.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [tiles[i], tiles[j]] = [tiles[j], tiles[i]];
-        }
-        
-        // 如果麻将数量不足64个，补充到64个
-        while (tiles.length < totalTiles) {
-            const randomType = Math.floor(Math.random() * tileTypes.length);
-            tiles.push({
-                type: randomType,
-                symbol: tileTypes[randomType],
-                id: `extra-${tiles.length}`
-            });
-        }
-        
-        // 再次洗牌确保随机性
-        for (let i = tiles.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [tiles[i], tiles[j]] = [tiles[j], tiles[i]];
-        }
-        
-        // 填充到棋盘
-        let tileIndex = 0;
-        for (let row = 0; row < boardSize; row++) {
-            for (let col = 0; col < boardSize; col++) {
-                // 直接设置到BoardManager
-                this.boardManager.setTileData(row, col, tiles[tileIndex++]);
-            }
-        }
-        
-        console.log(`生成了 ${tiles.length} 个麻将，填满 ${boardSize}x${boardSize} 棋盘`);
-        
-        // 打印棋盘布局用于调试
-        console.log('=== 棋盘布局 ===');
-        for (let row = 0; row < boardSize; row++) {
-            let rowStr = `第${row}行: `;
-            for (let col = 0; col < boardSize; col++) {
-                const tile = this.boardManager.getTileData(row, col);
-                rowStr += tile ? `${tile.symbol}(${tile.type}) ` : 'null ';
-            }
-            console.log(rowStr);
-        }
-        console.log('=== 棋盘布局结束 ===');
     }
     
     /**
@@ -630,38 +528,6 @@ export class GameManager extends Component {
         this.selectedTile = null;
 
     }
-    
-    /**
-     * 高亮选中的麻将
-     * 
-     * 功能：
-     * - 将选中麻将显示为蓝色
-     * - 添加蓝色边框和缩放效果
-     * - 修改Label的颜色
-     * - 将节点添加到高亮列表中
-     * 
-     * @param tileNode 选中的麻将节点
-     */
-    /*
-    // 🚫 【已注释】此方法已被 TileManager.highlightSelectedTile() 替代
-    private highlightSelectedTile(tileNode: Node) {
-        throw new Error('此方法已废弃，请使用 TileManager.highlightSelectedTile() 替代');
-    }
-    */
-    
-    /*
-    // 🚫 【已注释】此方法已被 TileManager.highlightEliminable() 替代
-    private highlightEliminable(row: number, col: number) {
-        throw new Error('此方法已废弃，请使用 TileManager.highlightEliminable() 替代');
-    }
-    */
-    
-    /*
-    // 🚫 【已注释】此方法已被 TileManager.clearAllHighlights() 替代
-    private clearAllHighlights() {
-        throw new Error('此方法已废弃，请使用 TileManager.clearAllHighlights() 替代');
-    }
-    */
     
     /**
      * 检查两个麻将是否可以消除
@@ -1835,24 +1701,6 @@ export class GameManager extends Component {
             console.log('移动记录已清除');
         }
     }
-    
-    // /**
-    //  * 显示移动失败反馈
-    //  */
-    // private showMoveFailedFeedback(row: number, col: number) {
-    //     console.log(`显示移动失败反馈: (${row}, ${col})`);
-        
-    //     const tileNode = this.tileNodes[row][col];
-    //     if (tileNode) {
-    //         // 简单的震动效果
-    //         const originalPos = tileNode.position.clone();
-    //         tween(tileNode)
-    //             .to(0.1, { position: originalPos.add(new Vec3(50, 0, 0)) })
-    //             .to(0.1, { position: originalPos.add(new Vec3(-50, 0, 0)) })
-    //             .to(0.1, { position: originalPos })
-    //             .start();
-    //     }
-    // }
 }
 
 /**

@@ -290,6 +290,80 @@ export class BoardManager {
     getTileNodes(): (Node | null)[][] {
         return this.tileNodes;
     }
+
+    /**
+     * 生成配对麻将 - 确保每种类型都有偶数个
+     * （从GameManager.generateSimplePairs()迁移）
+     * 
+     * @param tileManager TileManager实例，用于获取麻将类型
+     */
+    generateSimplePairs(tileManager: any): void {
+        const tiles: TileData[] = [];
+        const totalTiles = this.boardSize * this.boardSize; // 64个位置
+        
+        // 计算每种类型的数量，确保总数为偶数且能被类型数整除
+        const tilesPerType = Math.floor(totalTiles / tileManager.getTileTypes().length);
+        const adjustedTilesPerType = tilesPerType % 2 === 0 ? tilesPerType : tilesPerType - 1;
+        
+        console.log(`${this.boardSize}x${this.boardSize}棋盘，每种类型生成 ${adjustedTilesPerType} 个麻将`);
+        
+        // 为每种类型生成偶数个麻将
+        const tileTypes = tileManager.getTileTypes();
+        for (let i = 0; i < tileTypes.length; i++) {
+            for (let j = 0; j < adjustedTilesPerType; j++) {
+                tiles.push({
+                    type: i,
+                    symbol: tileTypes[i],
+                    id: `${i}-${j}`
+                });
+            }
+        }
+        
+        // 简单洗牌
+        for (let i = tiles.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [tiles[i], tiles[j]] = [tiles[j], tiles[i]];
+        }
+        
+        // 如果麻将数量不足64个，补充到64个
+        while (tiles.length < totalTiles) {
+            const randomType = Math.floor(Math.random() * tileTypes.length);
+            tiles.push({
+                type: randomType,
+                symbol: tileTypes[randomType],
+                id: `extra-${tiles.length}`
+            });
+        }
+        
+        // 再次洗牌确保随机性
+        for (let i = tiles.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [tiles[i], tiles[j]] = [tiles[j], tiles[i]];
+        }
+        
+        // 填充到棋盘
+        let tileIndex = 0;
+        for (let row = 0; row < this.boardSize; row++) {
+            for (let col = 0; col < this.boardSize; col++) {
+                // 直接设置到棋盘数据
+                this.board[row][col] = tiles[tileIndex++];
+            }
+        }
+        
+        console.log(`生成了 ${tiles.length} 个麻将，填满 ${this.boardSize}x${this.boardSize} 棋盘`);
+        
+        // 打印棋盘布局用于调试
+        console.log('=== 棋盘布局 ===');
+        for (let row = 0; row < this.boardSize; row++) {
+            let rowStr = `第${row}行: `;
+            for (let col = 0; col < this.boardSize; col++) {
+                const tile = this.board[row][col];
+                rowStr += tile ? `${tile.symbol}(${tile.type}) ` : 'null ';
+            }
+            console.log(rowStr);
+        }
+        console.log('=== 棋盘布局结束 ===');
+    }
     
     // ==================== Setter方法 ====================
     
