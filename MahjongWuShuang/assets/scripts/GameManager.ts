@@ -73,6 +73,10 @@ export class GameManager extends Component {
     private dragShadows: Node[] = [];                                   // 拖拽时显示的半透明虚影节点
     private dragDirection: 'horizontal' | 'vertical' | null = null;    // 拖拽的主要方向
     
+    // ==================== 对象池系统 ====================
+    private shadowPoolByType: Map<number, Node[]> = new Map();          // 按麻将类型分类的虚影对象池
+    private readonly POOL_SIZE_PER_TYPE = 8;                            // 每种麻将类型的对象池大小
+    
     // ==================== 移动历史与智能回退 ====================
     private lastMoveRecord: {
         oldPositions: {row: number, col: number}[],      // 移动前的所有位置
@@ -171,6 +175,7 @@ export class GameManager extends Component {
         this.createBoard();
         this.generateSimplePairs();
         this.renderBoard();
+        this.initShadowPool();  // 初始化虚影对象池
         
         console.log('游戏初始化完成！');
     }
@@ -409,6 +414,156 @@ export class GameManager extends Component {
         ];
         
         return spriteNames[tileType] || 'mahjong_default';
+    }
+    
+    /**
+     * 初始化虚影对象池
+     * 
+     * 功能：
+     * - 按麻将类型预先创建虚影节点
+     * - 每种类型预创建足够数量，内容完全配置好
+     * - 避免拖拽时的任何创建和配置开销
+     */
+    private initShadowPool() {
+        console.log('初始化按类型分类的虚影对象池...');
+        
+        // 清空现有对象池
+        this.shadowPoolByType.forEach(pool => {
+            pool.forEach(node => node.destroy());
+        });
+        this.shadowPoolByType.clear();
+        
+        // 为每种麻将类型创建对象池
+        for (let tileType = 0; tileType < this.tileTypes.length; tileType++) {
+            const typePool: Node[] = [];
+            
+            // 为每种类型预创建指定数量的虚影节点
+            for (let i = 0; i < this.POOL_SIZE_PER_TYPE; i++) {
+                const shadowNode = this.createShadowNodeForType(tileType);
+                shadowNode.active = false; // 初始状态为隐藏
+                shadowNode.setParent(this.node.parent); // 添加到Canvas
+                typePool.push(shadowNode);
+            }
+            
+            this.shadowPoolByType.set(tileType, typePool);
+            console.log(`  类型 ${tileType} (${this.tileTypes[tileType]}): 预创建 ${this.POOL_SIZE_PER_TYPE} 个节点`);
+        }
+        
+        const totalNodes = this.tileTypes.length * this.POOL_SIZE_PER_TYPE;
+        console.log(`✅ 虚影对象池初始化完成，总计预创建 ${totalNodes} 个节点`);
+    }
+    
+    /**
+     * 为指定麻将类型创建完全配置好的虚影节点
+     * 
+     * @param tileType 麻将类型索引
+     */
+    private createShadowNodeForType(tileType: number): Node {
+        const shadowNode = new Node(`Shadow_Type_${tileType}`);
+        const shadowTransform = shadowNode.addComponent(UITransform);
+        shadowTransform.setContentSize(this.tileSize, this.tileSize);
+        
+        // 添加Label子节点并完全配置
+        const labelNode = new Node('Label');
+        const labelTransform = labelNode.addComponent(UITransform);
+        labelTransform.setContentSize(this.tileSize, this.tileSize);
+        const label = labelNode.addComponent(Label);
+        
+        // 完全配置Label内容
+        label.string = this.tileTypes[tileType];
+        label.fontSize = 32;
+        label.horizontalAlign = Label.HorizontalAlign.CENTER;
+        label.verticalAlign = Label.VerticalAlign.CENTER;
+        
+        // 设置对应类型的颜色
+        const colors = [
+            new Color(229, 62, 62),   // 🀄 中 - 红色
+            new Color(56, 161, 105),  // 🀅 发 - 绿色  
+            new Color(49, 130, 206),  // 🀆 白 - 蓝色
+            new Color(214, 158, 46),  // 🀇 一万 - 黄色
+            new Color(128, 90, 213),  // 🀈 二万 - 紫色
+            new Color(221, 107, 32),  // 🀉 三万 - 橙色
+            new Color(49, 151, 149),  // 🀊 四万 - 青色
+            new Color(236, 72, 153),  // 🀋 五万 - 粉色
+        ];
+        
+        if (tileType < colors.length) {
+            label.color = colors[tileType];
+        }
+        
+        shadowNode.addChild(labelNode);
+        
+        // 设置半透明效果
+        const uiOpacity = shadowNode.addComponent(UIOpacity);
+        uiOpacity.opacity = 150; // 半透明
+        
+        // 存储类型信息
+        (shadowNode as any).tileType = tileType;
+        
+        return shadowNode;
+    }
+    
+    /**
+     * 从对象池获取指定类型的虚影节点
+     * 
+     * @param tileType 麻将类型索引
+     */
+    private getShadowFromPool(tileType: number): Node | null {
+        const typePool = this.shadowPoolByType.get(tileType);
+        if (!typePool) {
+            console.warn(`未找到类型 ${tileType} 的对象池`);
+            return null;
+        }
+        
+        // 查找未使用的节点
+        for (const shadow of typePool) {
+            if (!shadow.active) {
+                shadow.active = true;
+                return shadow;
+            }
+        }
+        
+        console.warn(`类型 ${tileType} 的对象池已满，创建临时节点`);
+        // 如果池子满了，创建临时节点
+        const tempShadow = this.createShadowNodeForType(tileType);
+        tempShadow.setParent(this.node.parent);
+        return tempShadow;
+    }
+    
+    /**
+     * 归还虚影节点到对应类型的对象池
+     */
+    private returnShadowToPool(shadowNode: Node) {
+        const tileType = (shadowNode as any).tileType;
+        
+        // 检查是否是对象池中的节点
+        let isPoolNode = false;
+        if (typeof tileType === 'number') {
+            const typePool = this.shadowPoolByType.get(tileType);
+            if (typePool) {
+                for (const poolNode of typePool) {
+                    if (poolNode === shadowNode) {
+                        isPoolNode = true;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        if (isPoolNode) {
+            // 重置节点状态
+            shadowNode.active = false;
+            shadowNode.setPosition(0, 0, 0);
+            
+            // 清除临时属性（保留tileType）
+            delete (shadowNode as any).relativeOffsetX;
+            delete (shadowNode as any).relativeOffsetY;
+            delete (shadowNode as any).originalWorldX;
+            delete (shadowNode as any).originalWorldY;
+        } else {
+            // 临时创建的节点直接销毁
+            shadowNode.destroy();
+        }
     }
     
     /**
@@ -1232,41 +1387,14 @@ export class GameManager extends Component {
             const originalTileNode = this.tileNodes[tileGrid.row][tileGrid.col];
             if (!originalTileNode) return;
             
-            // 创建虚影节点
-            const shadowNode = new Node('DragShadow');
-            const shadowTransform = shadowNode.addComponent(UITransform);
-            shadowTransform.setContentSize(this.tileSize, this.tileSize);
-            
-            // 添加文字
-            const labelNode = new Node('Label');
-            const labelTransform = labelNode.addComponent(UITransform);
-            labelTransform.setContentSize(this.tileSize, this.tileSize);
-            const label = labelNode.addComponent(Label);
-            
             const tileData = this.board[tileGrid.row][tileGrid.col];
-            if (tileData) {
-                label.string = tileData.symbol;
-                label.fontSize = 32;
-                label.horizontalAlign = Label.HorizontalAlign.CENTER;
-                label.verticalAlign = Label.VerticalAlign.CENTER;
-                
-                // 设置颜色
-                const colors = [
-                    new Color(229, 62, 62),   // 🀄 中 - 红色
-                    new Color(56, 161, 105),  // 🀅 发 - 绿色  
-                    new Color(49, 130, 206),  // 🀆 白 - 蓝色
-                    new Color(214, 158, 46),  // 🀇 一万 - 黄色
-                    new Color(128, 90, 213),  // 🀈 二万 - 紫色
-                    new Color(221, 107, 32),  // 🀉 三万 - 橙色
-                    new Color(49, 151, 149),  // 🀊 四万 - 青色
-                    new Color(236, 72, 153),  // 🀋 五万 - 粉色
-                ];
-                if (tileData.type < colors.length) {
-                    label.color = colors[tileData.type];
-                }
-            }
+            if (!tileData) return;
             
-            shadowNode.addChild(labelNode);
+            // 从对应类型的对象池获取完全配置好的虚影节点
+            const shadowNode = this.getShadowFromPool(tileData.type);
+            if (!shadowNode) return;
+            
+            // 节点已经完全配置好，无需任何设置
             
             // 计算相对偏移
             const originalTileWorldPos = originalTileNode.worldPosition;
@@ -1279,8 +1407,6 @@ export class GameManager extends Component {
             (shadowNode as any).originalWorldX = originalTileWorldPos.x;
             (shadowNode as any).originalWorldY = originalTileWorldPos.y;
             
-            // 添加到场景
-            shadowNode.setParent(this.node.parent); // 添加到Canvas
             this.dragShadows.push(shadowNode);
         });
         
@@ -1317,11 +1443,11 @@ export class GameManager extends Component {
      * 清除拖拽虚影
      * 
      * 功能：
-     * - 销毁所有虚影节点并释放内存
+     * - 将虚影节点归还到对象池
      * - 清空虚影节点数组
      */
     private clearDragShadows() {
-        this.dragShadows.forEach(shadow => shadow.destroy());
+        this.dragShadows.forEach(shadow => this.returnShadowToPool(shadow));
         this.dragShadows = [];
     }
     
