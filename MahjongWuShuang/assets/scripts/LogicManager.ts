@@ -226,6 +226,30 @@ export class LogicManager {
     }
     
     /**
+     * 验证移动记录是否可以安全回退
+     * （从GameManager.revertLastMove()中提取的纯逻辑部分）
+     */
+    validateMoveRecordForRevert(): {isValid: boolean, record: MoveRecord | null, error?: string} {
+        const record = this.lastMoveRecord;
+        
+        if (!record) {
+            return {isValid: false, record: null, error: '没有移动记录，无法回退'};
+        }
+        
+        // 验证记录完整性
+        if (!record.oldPositions || !record.newPositions || !record.tileData || !record.tileNodes) {
+            return {isValid: false, record: null, error: '移动记录数据不完整，无法安全回退'};
+        }
+        
+        if (record.oldPositions.length !== record.tileData.length || 
+            record.oldPositions.length !== record.tileNodes.length) {
+            return {isValid: false, record: null, error: '移动记录数据长度不一致，无法安全回退'};
+        }
+        
+        return {isValid: true, record};
+    }
+    
+    /**
      * 查找原始拖动麻将的新位置
      * （从GameManager.findOriginalDragTileNewPosition()完全迁移）
      */

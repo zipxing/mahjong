@@ -1123,26 +1123,16 @@ export class GameManager extends Component {
     private revertLastMove() {
         console.log('开始回退上次移动');
         
-        const record = this.logicManager.getLastMoveRecord();
-        if (!record) {
-            console.log('没有移动记录，无法回退');
+        // 使用LogicManager验证移动记录
+        const validation = this.logicManager.validateMoveRecordForRevert();
+        if (!validation.isValid) {
+            console.error(validation.error);
+            this.logicManager.clearLastMoveRecord();
             return;
         }
+        
+        const record = validation.record!;
         console.log('回退移动记录:', record);
-        
-        // 验证记录完整性
-        if (!record.oldPositions || !record.newPositions || !record.tileData || !record.tileNodes) {
-            console.error('移动记录数据不完整，无法安全回退');
-            this.logicManager.clearLastMoveRecord();
-            return;
-        }
-        
-        if (record.oldPositions.length !== record.tileData.length || 
-            record.oldPositions.length !== record.tileNodes.length) {
-            console.error('移动记录数据长度不一致，无法安全回退');
-            this.logicManager.clearLastMoveRecord();
-            return;
-        }
         
         try {
             // 第一步：清除新位置（安全检查）
