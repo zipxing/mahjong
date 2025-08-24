@@ -20,7 +20,7 @@
  * @date 2025-08-24
  */
 
-import { _decorator, Component, Node, Vec3, Color, Label, UITransform, input, Input, EventTouch, Vec2, tween, UIOpacity, Sprite, SpriteFrame, SpriteAtlas } from 'cc';
+import { _decorator, Component, Node, Vec3, Color, Label, UITransform, Vec2, tween, UIOpacity, Sprite, SpriteFrame, SpriteAtlas } from 'cc';
 import { BoardManager } from './BoardManager';
 import { TileManager } from './TileManager';
 import { ShadowPool } from './ShadowPool';
