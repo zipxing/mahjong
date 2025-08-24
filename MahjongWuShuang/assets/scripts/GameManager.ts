@@ -47,20 +47,9 @@ export class GameManager extends Component {
     mahjongAtlas: SpriteAtlas = null!;  // 麻将图集（用于DrawCall合批）
     
     // ==================== 游戏配置 ====================
-    // ⚠️ 【冗余属性】与子模块重复，保留用于兼容性
     private boardSize: number = 8;  // 棋盘大小：8x8网格
-    /*
-    // 🚫 【已注释】这些属性已迁移到相应的管理器
-    private tileTypes: string[] = [...];  // 已迁移到 TileManager
-    private tileSize: number = 70;        // 已迁移到 BoardManager  
-    private tileGap: number = 8;          // 已迁移到 BoardManager
-    */
-    
-    // ==================== 高亮效果常量 ====================
-    // 高亮效果常量已迁移到 TileManager
     
     // ==================== 游戏状态 ====================
-    // 游戏逻辑数据矩阵和麻将显示节点矩阵已迁移到 BoardManager
     private selectedTile: {row: number, col: number, node: Node} | null = null;  // 当前选中的麻将
     private score: number = 0;                                           // 当前游戏得分
     
@@ -74,11 +63,6 @@ export class GameManager extends Component {
     private dragGroup: {row: number, col: number}[] = [];              // 参与拖拽的麻将组（推动效果）
     private dragShadows: Node[] = [];                                   // 拖拽时显示的半透明虚影节点
     private dragDirection: 'horizontal' | 'vertical' | null = null;    // 拖拽的主要方向
-    
-    // // ==================== 对象池系统 ====================
-    // // ⚠️ 【冗余属性】已被 ShadowPool 替代，保留用于兼容性
-    // private shadowPoolByType: Map<number, Node[]> = new Map();          // 按麻将类型分类的虚影对象池
-    // private readonly POOL_SIZE_PER_TYPE = 8;                            // 每种麻将类型的对象池大小
     
     // ==================== 模块管理器 ====================
     private boardManager: BoardManager = new BoardManager();
