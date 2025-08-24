@@ -19,7 +19,7 @@ const { ccclass } = _decorator;
 // 回调函数接口
 interface InputCallbacks {
     onTileClick: (row: number, col: number) => void;
-    onDragEnd: (startRow: number, startCol: number, endRow: number, endCol: number, dragState: any) => void;
+    onDragMove: (startRow: number, startCol: number, endRow: number, endCol: number, direction: string, steps: number, dragState: any) => void;
     screenToGrid: (screenPos: Vec2) => {row: number, col: number} | null;
     getTileData: (row: number, col: number) => any;
     findDragGroupForSpecificDirection: (startRow: number, startCol: number, direction: 'left' | 'right' | 'up' | 'down') => {row: number, col: number}[];
@@ -262,12 +262,19 @@ export class InputManager {
                 console.log('目标网格位置:', targetGridPos);
                 
                 if (targetGridPos) {
-                    const dragState = {
-                        dragGroup: [...this.dragGroup],
-                        dragDirection: this.dragDirection,
-                        dragStartPos: dragStartPos
-                    };
-                    this.callbacks.onDragEnd(dragStartPos.row, dragStartPos.col, targetGridPos.row, targetGridPos.col, dragState);
+                    // 计算移动方向和距离
+                    const { direction, steps } = this.calculateMoveDirection(dragStartPos.row, dragStartPos.col, targetGridPos.row, targetGridPos.col);
+                    
+                    if (steps > 0) {
+                        const dragState = {
+                            dragGroup: [...this.dragGroup],
+                            dragDirection: this.dragDirection,
+                            dragStartPos: dragStartPos
+                        };
+                        this.callbacks.onDragMove(dragStartPos.row, dragStartPos.col, targetGridPos.row, targetGridPos.col, direction, steps, dragState);
+                    } else {
+                        console.log('移动步数为0，不执行移动');
+                    }
                 } else {
                     console.log('无法获取有效的目标网格位置');
                 }
@@ -282,5 +289,31 @@ export class InputManager {
         
         this.resetDragState();
         console.log('=== 拖动结束处理完成 ===');
+    }
+    
+    /**
+     * 计算移动方向和距离（从GameManager.handleDragEnd迁移）
+     */
+    private calculateMoveDirection(startRow: number, startCol: number, endRow: number, endCol: number): {direction: string, steps: number} {
+        // 计算移动方向和距离
+        const deltaRow = endRow - startRow;
+        const deltaCol = endCol - startCol;
+        
+        console.log('网格移动距离:', { deltaRow, deltaCol });
+        
+        let direction = '';
+        let steps = 0;
+        
+        if (Math.abs(deltaCol) > Math.abs(deltaRow)) {
+            direction = deltaCol > 0 ? 'right' : 'left';
+            steps = Math.abs(deltaCol);
+        } else if (Math.abs(deltaRow) > 0) {
+            direction = deltaRow > 0 ? 'down' : 'up';
+            steps = Math.abs(deltaRow);
+        }
+        
+        console.log(`计算的移动: 方向=${direction}, 步数=${steps}`);
+        
+        return { direction, steps };
     }
 }

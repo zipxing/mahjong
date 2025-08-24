@@ -136,8 +136,8 @@ export class GameManager extends Component {
         // 初始化输入管理器
         this.inputManager.init({
             onTileClick: (row: number, col: number) => this.handleTileClick(row, col),
-            onDragEnd: (startRow: number, startCol: number, endRow: number, endCol: number, dragState: any) => 
-                this.handleDragEnd(startRow, startCol, endRow, endCol, dragState),
+            onDragMove: (startRow: number, startCol: number, endRow: number, endCol: number, direction: string, steps: number, dragState: any) => 
+                this.handleDragMove(startRow, startCol, direction, steps, dragState),
             screenToGrid: (screenPos: Vec2) => this.boardManager.screenToGrid(screenPos),
             getTileData: (row: number, col: number) => this.boardManager.getTileData(row, col),
             findDragGroupForSpecificDirection: (startRow: number, startCol: number, direction: 'left' | 'right' | 'up' | 'down') => 
@@ -167,8 +167,6 @@ export class GameManager extends Component {
     private returnShadowToPool(shadowNode: Node) {
         this.shadowPool.returnShadowToPool(shadowNode);
     }
-    
-    // 触摸事件处理已迁移到InputManager
     
     /**
      * 处理麻将点击事件 - 参考web版本实现
@@ -395,8 +393,6 @@ export class GameManager extends Component {
         this.clearDragShadows();
     }
     
-    // 原createDragGroupShadows方法已删除，现在使用createDragGroupShadowsWithState
-    
     /**
      * 使用外部状态创建拖拽组虚影（InputManager回调专用）
      */
@@ -495,57 +491,34 @@ export class GameManager extends Component {
      * @param endRow 拖拽结束行
      * @param endCol 拖拽结束列
      */
-    private handleDragEnd(startRow: number, startCol: number, endRow: number, endCol: number, dragState: any) {
-        console.log('=== 处理拖拽结束 ===');
+    private handleDragMove(startRow: number, startCol: number, direction: string, steps: number, dragState: any) {
+        console.log('=== 处理拖拽移动 ===');
         console.log(`起始位置: (${startRow}, ${startCol})`);
-        console.log(`结束位置: (${endRow}, ${endCol})`);
+        console.log(`移动方向: ${direction}, 步数: ${steps}`);
         console.log('当前拖动组:', dragState.dragGroup);
         
-        // 计算移动方向和距离
-        const deltaRow = endRow - startRow;
-        const deltaCol = endCol - startCol;
+        console.log('开始执行麻将移动逻辑');
         
-        console.log('网格移动距离:', { deltaRow, deltaCol });
+        // 检查移动后是否有消除机会
+        const canMove = this.logicManager.checkIfCanMove(dragState.dragGroup, direction, steps);
+        console.log('移动可行性检查:', canMove);
         
-        let direction = '';
-        let steps = 0;
-        
-        if (Math.abs(deltaCol) > Math.abs(deltaRow)) {
-            direction = deltaCol > 0 ? 'right' : 'left';
-            steps = Math.abs(deltaCol);
-        } else if (Math.abs(deltaRow) > 0) {
-            direction = deltaRow > 0 ? 'down' : 'up';
-            steps = Math.abs(deltaRow);
-        }
-        
-        console.log(`计算的移动: 方向=${direction}, 步数=${steps}`);
-        
-        if (steps > 0) {
-            console.log('开始执行麻将移动逻辑');
+        if (canMove) {
+            // 执行移动
+            console.log('执行移动操作');
+            this.executeTileMove(startRow, startCol, direction, steps, dragState.dragGroup);
             
-            // 检查移动后是否有消除机会
-            const canMove = this.logicManager.checkIfCanMove(dragState.dragGroup, direction, steps);
-            console.log('移动可行性检查:', canMove);
-            
-            if (canMove) {
-                // 执行移动
-                console.log('执行移动操作');
-                this.executeTileMove(startRow, startCol, direction, steps, dragState.dragGroup);
-                
-                // 检查移动后的消除机会
-                setTimeout(() => {
-                    console.log('检查移动后的消除机会');
-                    this.checkEliminationAfterMove();
-                }, 60);
-            } else {
-                console.log('移动不可行，显示失败反馈');
-                // this.showMoveFailedFeedback(startRow, startCol);
-            }
+            // 检查移动后的消除机会
+            setTimeout(() => {
+                console.log('检查移动后的消除机会');
+                this.checkEliminationAfterMove();
+            }, 60);
         } else {
-            console.log('移动步数为0，不执行移动');
+            console.log('移动不可行，显示失败反馈');
+            // this.showMoveFailedFeedback(startRow, startCol);
         }
         
-        console.log('=== 拖拽结束处理完成 ===');
+        console.log('=== 拖拽移动处理完成 ===');
     }
     
     /**
