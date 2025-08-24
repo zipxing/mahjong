@@ -411,16 +411,11 @@ export class GameManager extends Component {
      */
     private selectTile(row: number, col: number, tileNode: Node) {
         console.log(`=== 选择麻将: (${row}, ${col}) ===`);
-        console.log('麻将节点名称:', tileNode.name);
-        console.log('麻将节点有效性:', tileNode.isValid);
         
         this.selectedTile = { row, col, node: tileNode };
-        console.log('设置选中状态完成，当前选中:', this.selectedTile);
-        
-        console.log('开始高亮选中麻将...');
         this.tileManager.highlightSelectedTile(tileNode);
-        console.log('高亮选中麻将完成');
         
+        console.log('设置选中状态完成，当前选中:', this.selectedTile);
         console.log('开始高亮可消除麻将...');
         this.tileManager.highlightEliminable(row, col, this.boardManager, this.boardManager.getBoardSize(), (r1, c1, r2, c2) => this.logicManager.canEliminate(r1, c1, r2, c2));
         console.log('高亮可消除麻将完成');
