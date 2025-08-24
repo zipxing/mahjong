@@ -225,6 +225,123 @@ export class LogicManager {
         this.lastMoveRecord = null;
     }
     
+    /**
+     * 查找原始拖动麻将的新位置
+     * （从GameManager.findOriginalDragTileNewPosition()完全迁移）
+     */
+    findOriginalDragTileNewPosition(): {row: number, col: number} | null {
+        if (!this.lastMoveRecord || !this.lastMoveRecord.originalDragPosition) {
+            return null;
+        }
+        
+        const originalRow = this.lastMoveRecord.originalDragPosition.row;
+        const originalCol = this.lastMoveRecord.originalDragPosition.col;
+        
+        console.log(`查找原始拖动位置 (${originalRow}, ${originalCol}) 的新位置`);
+        
+        // 在移动记录中找到原始位置对应的新位置
+        for (let i = 0; i < this.lastMoveRecord.oldPositions.length; i++) {
+            const oldPos = this.lastMoveRecord.oldPositions[i];
+            if (oldPos.row === originalRow && oldPos.col === originalCol) {
+                const newPos = this.lastMoveRecord.newPositions[i];
+                console.log(`找到原始拖动麻将的新位置: (${newPos.row}, ${newPos.col})`);
+                return newPos;
+            }
+        }
+        
+        console.log('未找到原始拖动麻将的新位置');
+        return null;
+    }
+    
+    /**
+     * 获取指定位置麻将的所有消除选项（移动后消除检查专用）
+     * （从GameManager消除检查逻辑中提取的纯逻辑部分）
+     */
+    getEliminationOptionsForPosition(row: number, col: number): Array<{row1: number, col1: number, row2: number, col2: number}> {
+        if (!this.deps) return [];
+        
+        const eliminablePairs: Array<{row1: number, col1: number, row2: number, col2: number}> = [];
+        const boardSize = this.deps.boardManager.getBoardSize();
+        
+        // 遍历整个棋盘，寻找能与指定位置麻将消除的其他麻将
+        for (let r = 0; r < boardSize; r++) {
+            for (let c = 0; c < boardSize; c++) {
+                // 跳过空位置和自己
+                if (!this.deps.boardManager.getTileData(r, c) || (r === row && c === col)) continue;
+                
+                if (this.canEliminate(row, col, r, c)) {
+                    eliminablePairs.push({
+                        row1: row,
+                        col1: col,
+                        row2: r,
+                        col2: c
+                    });
+                }
+            }
+        }
+        
+        return eliminablePairs;
+    }
+    
+    /**
+     * 获取所有移动麻将的消除选项
+     * （从GameManager.checkAllMovedTilesElimination()中提取的纯逻辑部分）
+     */
+    getAllMovedTilesEliminationOptions(): Array<{row1: number, col1: number, row2: number, col2: number}> {
+        if (!this.deps || !this.lastMoveRecord) return [];
+        
+        const eliminablePairs: Array<{row1: number, col1: number, row2: number, col2: number}> = [];
+        
+        // 检查所有移动后的新位置的麻将
+        this.lastMoveRecord.newPositions.forEach(newPos => {
+            if (!this.deps!.boardManager.getTileData(newPos.row, newPos.col)) return;
+            
+            // 获取这个位置的消除选项
+            const positionOptions = this.getEliminationOptionsForPosition(newPos.row, newPos.col);
+            
+            // 添加到总列表中，避免重复
+            positionOptions.forEach(option => {
+                const exists = eliminablePairs.some(pair => 
+                    (pair.row1 === option.row1 && pair.col1 === option.col1 && pair.row2 === option.row2 && pair.col2 === option.col2) ||
+                    (pair.row1 === option.row2 && pair.col1 === option.col2 && pair.row2 === option.row1 && pair.col2 === option.col1)
+                );
+                
+                if (!exists) {
+                    eliminablePairs.push(option);
+                }
+            });
+        });
+        
+        return eliminablePairs;
+    }
+    
+    /**
+     * 检查移动可行性
+     * （从GameManager.checkIfCanMove()完全迁移）
+     */
+    checkIfCanMove(dragGroup: {row: number, col: number}[], direction: string, steps: number): boolean {
+        console.log(`检查移动可行性: ${direction} ${steps}步`);
+        console.log('当前拖动组:', dragGroup);
+        
+        // 检查拖动组中每个麻将的移动路径
+        for (const tile of dragGroup) {
+            if (!this.checkSingleTileMovePath(tile.row, tile.col, direction, steps, dragGroup)) {
+                console.log(`麻将 (${tile.row}, ${tile.col}) 的移动路径被阻挡`);
+                return false;
+            }
+        }
+        
+        // 检查移动后的位置冲突
+        const newPositions = this.calculateNewPositions(dragGroup, direction, steps);
+        if (this.checkPositionConflicts(newPositions)) {
+            console.log('移动后位置有冲突');
+            return false;
+        }
+        
+        console.log('✅ 移动可行性检查通过 - 所有路径畅通');
+        return true;
+    }
+    
     // ==================== 移动逻辑 ====================
     
     /**
