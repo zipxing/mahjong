@@ -1,30 +1,26 @@
 /**
  * 麻将无双游戏 - Cocos Creator版本
  * 
- * 这是一个从Web版本移植到Cocos Creator的麻将消除游戏
- * 
  * 主要特性：
  * - 8x8棋盘，8种不同的麻将类型
  * - 点击选择与智能消除系统
  * - 拖拽移动与推动效果
  * - 移动失败自动回退
- * - 丰富的视觉反馈（高亮、缩放、动画）
  * - 完整的触摸事件处理
  * - 坐标系统转换（屏幕坐标 ↔ 网格坐标）
  * 
  * 技术要点：
- * - 使用背景颜色变化实现简洁的高亮效果
  * - 使用Tween系统实现各种动画效果
  * - 完善的错误处理和安全检查
  * - 智能的拖拽组选择算法（推动逻辑）
  * - 基于移动历史的回退系统
  * 
- * @author AI Assistant
+ * @author Zipxing & Cursor
  * @version 1.0
- * @date 2024
+ * @date 2025-08-24
  */
 
-import { _decorator, Component, Node, Vec3, Color, Label, UITransform, input, Input, EventTouch, Vec2, tween, UIOpacity } from 'cc';
+import { _decorator, Component, Node, Vec3, Color, Label, UITransform, input, Input, EventTouch, Vec2, tween, UIOpacity, Sprite, SpriteFrame, SpriteAtlas } from 'cc';
 const { ccclass, property } = _decorator;
 
 /**
@@ -43,6 +39,9 @@ export class GameManager extends Component {
     // ==================== 组件引用 ====================
     @property(Node)
     gameBoard: Node = null!;  // 游戏棋盘根节点
+    
+    @property(SpriteAtlas)
+    mahjongAtlas: SpriteAtlas = null!;  // 麻将图集（用于DrawCall合批）
     
     // ==================== 游戏配置 ====================
     private boardSize: number = 8;  // 棋盘大小：8x8网格
@@ -92,7 +91,6 @@ export class GameManager extends Component {
      * 设置麻将高亮效果（简洁版）
      * 
      * 功能：
-     * - 通过背景颜色变化实现高亮
      * - 通过缩放效果增强视觉反馈
      * - 更简洁美观的高亮方式
      * 
@@ -323,6 +321,48 @@ export class GameManager extends Component {
         const transform = tileNode.addComponent(UITransform);
         transform.setContentSize(this.tileSize, this.tileSize);
         
+        // 尝试使用图集优化DrawCall
+        // 为了降低drawcall和美术效果，后续这里改成图集即可
+        if (this.mahjongAtlas && this.createSpriteBasedTile(tileNode, tileData)) {
+            console.log(`使用Sprite方式创建麻将: ${tileData.symbol}`);
+        } else {
+            // 降级到Label方式
+            this.createLabelBasedTile(tileNode, tileData);
+            console.log(`使用Label方式创建麻将: ${tileData.symbol}`);
+        }
+        
+        // 存储数据
+        (tileNode as any).tileData = tileData;
+        (tileNode as any).gridRow = row;
+        (tileNode as any).gridCol = col;
+        
+        return tileNode;
+    }
+    
+    /**
+     * 创建基于Sprite的麻将（DrawCall优化）
+     */
+    private createSpriteBasedTile(tileNode: Node, tileData: TileData): boolean {
+        try {
+            // 根据麻将类型获取对应的SpriteFrame
+            const spriteFrameName = this.getSpriteFrameName(tileData.type);
+            const spriteFrame = this.mahjongAtlas.getSpriteFrame(spriteFrameName);
+            
+            if (spriteFrame) {
+                const sprite = tileNode.addComponent(Sprite);
+                sprite.spriteFrame = spriteFrame;
+                return true;
+            }
+        } catch (error) {
+            console.warn('Sprite方式创建失败，降级到Label:', error);
+        }
+        return false;
+    }
+    
+    /**
+     * 创建基于Label的麻将（兼容方式）
+     */
+    private createLabelBasedTile(tileNode: Node, tileData: TileData): void {
         // 创建文字标签
         const labelNode = new Node('Label');
         const labelTransform = labelNode.addComponent(UITransform);
@@ -351,13 +391,24 @@ export class GameManager extends Component {
         }
         
         tileNode.addChild(labelNode);
+    }
+    
+    /**
+     * 获取Sprite图片名称
+     */
+    private getSpriteFrameName(tileType: number): string {
+        const spriteNames = [
+            'mahjong_zhong',    // 🀄 中
+            'mahjong_fa',       // 🀅 发
+            'mahjong_bai',      // 🀆 白
+            'mahjong_1wan',     // 🀇 一万
+            'mahjong_2wan',     // 🀈 二万
+            'mahjong_3wan',     // 🀉 三万
+            'mahjong_4wan',     // 🀊 四万
+            'mahjong_5wan',     // 🀋 五万
+        ];
         
-        // 存储数据
-        (tileNode as any).tileData = tileData;
-        (tileNode as any).gridRow = row;
-        (tileNode as any).gridCol = col;
-        
-        return tileNode;
+        return spriteNames[tileType] || 'mahjong_default';
     }
     
     /**

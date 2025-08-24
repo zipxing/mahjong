@@ -16,5 +16,11 @@
     "legacyFbxImporter": {
       "visible": true
     }
+  },
+  "general": {
+    "designResolution": {
+      "width": 720,
+      "height": 1280
+    }
   }
 }
