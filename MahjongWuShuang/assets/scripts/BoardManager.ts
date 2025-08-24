@@ -15,6 +15,7 @@ const { ccclass } = _decorator;
 interface TileData {
     type: number;
     symbol: string;
+    id: string;
 }
 
 @ccclass('BoardManager')

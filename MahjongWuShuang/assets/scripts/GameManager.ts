@@ -61,8 +61,7 @@ export class GameManager extends Component {
     private readonly ANIMATION_SCALE = 1.5;            // 动画时的最大缩放比例
     
     // ==================== 游戏状态 ====================
-    private board: (TileData | null)[][] = [];                           // 游戏逻辑数据矩阵
-    private tileNodes: (Node | null)[][] = [];                          // 麻将显示节点矩阵
+    // 游戏逻辑数据矩阵和麻将显示节点矩阵已迁移到 BoardManager
     private selectedTile: {row: number, col: number, node: Node} | null = null;  // 当前选中的麻将
     private score: number = 0;                                           // 当前游戏得分
     
@@ -215,20 +214,8 @@ export class GameManager extends Component {
      */
     private createBoard() {
         // 使用BoardManager创建棋盘，但保持原有的本地引用以兼容现有代码
-        this.board = [];
-        this.tileNodes = [];
-        for (let i = 0; i < this.boardSize; i++) {
-            this.board[i] = [];
-            this.tileNodes[i] = [];
-            for (let j = 0; j < this.boardSize; j++) {
-                this.board[i][j] = null;
-                this.tileNodes[i][j] = null;
-            }
-        }
-        
-        // 同步到BoardManager
-        this.boardManager.setBoard(this.board);
-        this.boardManager.setTileNodes(this.tileNodes);
+        // 初始化游戏数据 - 直接在BoardManager中初始化
+        // 数据初始化已迁移到BoardManager
         
         console.log(`创建了 ${this.boardSize}x${this.boardSize} 的棋盘`);
     }
@@ -283,9 +270,8 @@ export class GameManager extends Component {
         let tileIndex = 0;
         for (let row = 0; row < this.boardSize; row++) {
             for (let col = 0; col < this.boardSize; col++) {
-                this.board[row][col] = tiles[tileIndex++];
-                // 同步到BoardManager
-                this.boardManager.setTileData(row, col, this.board[row][col]);
+                // 直接设置到BoardManager
+                this.boardManager.setTileData(row, col, tiles[tileIndex++]);
             }
         }
         
@@ -338,8 +324,7 @@ export class GameManager extends Component {
                     (tileNode as any).gridRow = row;
                     (tileNode as any).gridCol = col;
                     
-                    this.tileNodes[row][col] = tileNode;
-                    // 同步到BoardManager
+                    // 直接设置到BoardManager
                     this.boardManager.setTileNode(row, col, tileNode);
                     tilesCreated++;
                 }
@@ -734,7 +719,7 @@ export class GameManager extends Component {
                 if (r === row && c === col) continue;
                 
                 if (this.canEliminate(row, col, r, c)) {
-                    const tileNode = this.tileNodes[r][c];
+                    const tileNode = this.boardManager.getTileNode(r, c);
                     if (tileNode && tileNode.isValid) {
                         console.log(`高亮麻将: (${r}, ${c})`);
                         this.setTileHighlight(tileNode);
@@ -866,8 +851,8 @@ export class GameManager extends Component {
     private eliminatePair(row1: number, col1: number, row2: number, col2: number) {
         console.log(`消除麻将对: (${row1}, ${col1}) 和 (${row2}, ${col2})`);
         
-        const tile1Node = this.tileNodes[row1][col1];
-        const tile2Node = this.tileNodes[row2][col2];
+        const tile1Node = this.boardManager.getTileNode(row1, col1);
+        const tile2Node = this.boardManager.getTileNode(row2, col2);
         
         if (tile1Node && tile2Node) {
             // 消除动画 - 包含旋转特效
@@ -1068,13 +1053,13 @@ export class GameManager extends Component {
         this.clearDragShadows(); // 清除现有虚影
         if (!this.dragStartPos || this.dragGroup.length === 0) return;
         
-        const startTileNode = this.tileNodes[this.dragStartPos.row][this.dragStartPos.col];
+        const startTileNode = this.boardManager.getTileNode(this.dragStartPos.row, this.dragStartPos.col);
         if (!startTileNode) return;
         
         const startTileWorldPos = startTileNode.worldPosition;
         
         this.dragGroup.forEach(tileGrid => {
-            const originalTileNode = this.tileNodes[tileGrid.row][tileGrid.col];
+            const originalTileNode = this.boardManager.getTileNode(tileGrid.row, tileGrid.col);
             if (!originalTileNode) return;
             
             const tileData = this.boardManager.getTileData(tileGrid.row, tileGrid.col);
@@ -1685,7 +1670,7 @@ export class GameManager extends Component {
         this.clearAllHighlights();
         
         // 高亮原始拖动的麻将（蓝色）
-        const originalTileNode = this.tileNodes[originalTilePos.row][originalTilePos.col];
+        const originalTileNode = this.boardManager.getTileNode(originalTilePos.row, originalTilePos.col);
         if (originalTileNode && originalTileNode.isValid) {
             try {
                 this.setTileHighlight(originalTileNode);
@@ -1709,7 +1694,7 @@ export class GameManager extends Component {
                 partnerCol = pair.col1;
             }
             
-            const partnerNode = this.tileNodes[partnerRow][partnerCol];
+            const partnerNode = this.boardManager.getTileNode(partnerRow, partnerCol);
             if (partnerNode && partnerNode.isValid) {
                 try {
                     this.setTileHighlight(partnerNode);
