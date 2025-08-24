@@ -24,6 +24,7 @@ import { _decorator, Component, Node, Vec3, Color, Label, UITransform, input, In
 import { BoardManager } from './BoardManager';
 import { TileManager } from './TileManager';
 import { ShadowPool } from './ShadowPool';
+import { LogicManager } from './LogicManager';
 const { ccclass, property } = _decorator;
 
 /**
@@ -62,6 +63,7 @@ export class GameManager extends Component {
     private boardManager: BoardManager = new BoardManager();
     private tileManager: TileManager = new TileManager();
     private shadowPool: ShadowPool = new ShadowPool();
+    private logicManager: LogicManager = new LogicManager();
     
     // ==================== 移动历史与智能回退 ====================
     private lastMoveRecord: {
@@ -142,6 +144,12 @@ export class GameManager extends Component {
         
         // 初始化虚影对象池
         this.shadowPool.init(this.mahjongAtlas, this.node.parent || this.node);
+        
+        // 初始化逻辑管理器
+        this.logicManager.init({
+            boardManager: this.boardManager,
+            tileManager: this.tileManager
+        });
         
         console.log('✅ 模块管理器初始化完成');
     }
@@ -248,7 +256,7 @@ export class GameManager extends Component {
             console.log('拖拽方向:', this.dragDirection, '具体方向:', specificDirection);
             
             // 根据具体拖拽方向更新拖动组
-            this.dragGroup = this.findDragGroupForSpecificDirection(this.dragStartPos.row, this.dragStartPos.col, specificDirection);
+            this.dragGroup = this.logicManager.findDragGroupForSpecificDirection(this.dragStartPos.row, this.dragStartPos.col, specificDirection);
             console.log('更新后的拖动组:', this.dragGroup);
             
             // 创建拖动组的虚影
@@ -361,7 +369,7 @@ export class GameManager extends Component {
             }
             
             // 检查是否可以消除
-            const canEliminate = this.canEliminate(this.selectedTile.row, this.selectedTile.col, row, col);
+            const canEliminate = this.logicManager.canEliminate(this.selectedTile.row, this.selectedTile.col, row, col);
             console.log('消除检查结果:', canEliminate);
             
             if (canEliminate) {
@@ -388,7 +396,7 @@ export class GameManager extends Component {
         console.log(`--- 智能消除选择: (${row}, ${col}) ---`);
         
         // 检查当前麻将可以消除的所有选项
-        const eliminableOptions = this.getEliminableOptionsForTile(row, col);
+        const eliminableOptions = this.logicManager.getEliminableOptionsForTile(row, col);
         console.log(`找到 ${eliminableOptions.length} 个可消除选项:`, eliminableOptions);
         
         if (eliminableOptions.length === 1) {
@@ -423,36 +431,10 @@ export class GameManager extends Component {
         console.log('高亮选中麻将完成');
         
         console.log('开始高亮可消除麻将...');
-        this.tileManager.highlightEliminable(row, col, this.boardManager, this.boardManager.getBoardSize(), (r1, c1, r2, c2) => this.canEliminate(r1, c1, r2, c2));
+        this.tileManager.highlightEliminable(row, col, this.boardManager, this.boardManager.getBoardSize(), (r1, c1, r2, c2) => this.logicManager.canEliminate(r1, c1, r2, c2));
         console.log('高亮可消除麻将完成');
         
         console.log('=== 选择麻将完成 ===');
-    }
-    
-    /**
-     * 获取指定麻将的所有可消除选项
-     */
-    private getEliminableOptionsForTile(row: number, col: number): Array<{row1: number, col1: number, row2: number, col2: number}> {
-        const options: Array<{row1: number, col1: number, row2: number, col2: number}> = [];
-        const boardSize = this.boardManager.getBoardSize();
-        
-        // 遍历整个棋盘，找出所有可以与当前麻将消除的位置
-        for (let r = 0; r < boardSize; r++) {
-            for (let c = 0; c < boardSize; c++) {
-                if (r === row && c === col) continue; // 跳过自己
-                
-                if (this.canEliminate(row, col, r, c)) {
-                    options.push({
-                        row1: row,
-                        col1: col,
-                        row2: r,
-                        col2: c
-                    });
-                }
-            }
-        }
-        
-        return options;
     }
     
     /**
@@ -480,89 +462,6 @@ export class GameManager extends Component {
         
         this.selectedTile = null;
 
-    }
-    
-    /**
-     * 检查两个麻将是否可以消除
-     * 
-     * 消除规则：
-     * 1. 两个麻将必须是相同类型
-     * 2. 两个麻将必须相邻（上下左右）或在同一直线上且中间无障碍
-     * 
-     * @param r1 第一个麻将的行
-     * @param c1 第一个麻将的列
-     * @param r2 第二个麻将的行
-     * @param c2 第二个麻将的列
-     * @returns 是否可以消除
-     */
-    private canEliminate(r1: number, c1: number, r2: number, c2: number): boolean {
-        console.log(`--- 消除检查: (${r1},${c1}) vs (${r2},${c2}) ---`);
-        
-        const tile1 = this.boardManager.getTileData(r1, c1);
-        const tile2 = this.boardManager.getTileData(r2, c2);
-        
-        console.log('麻将1:', tile1);
-        console.log('麻将2:', tile2);
-        
-        if (!tile1 || !tile2 || (r1 === r2 && c1 === c2)) {
-            console.log('基础检查失败：麻将不存在或位置相同');
-            return false;
-        }
-        
-        // 检查类型是否相同
-        if (tile1.type !== tile2.type) {
-            console.log(`类型不匹配: ${tile1.type} vs ${tile2.type}`);
-            return false;
-        }
-        
-        console.log('类型匹配，继续检查路径');
-        
-        // 检查是否相邻
-        const isAdjacent = (Math.abs(r1 - r2) === 1 && c1 === c2) || (Math.abs(c1 - c2) === 1 && r1 === r2);
-        if (isAdjacent) {
-            console.log('相邻麻将，可以消除');
-            return true;
-        }
-        
-        // 检查直线路径 - 简化版本
-        if (r1 === r2) { // 同行
-            console.log('同行检查');
-            const startCol = Math.min(c1, c2) + 1;
-            const endCol = Math.max(c1, c2);
-            console.log(`检查列范围: ${startCol} 到 ${endCol}`);
-            
-            for (let col = startCol; col < endCol; col++) {
-                const tileAtPos = this.boardManager.getTileData(r1, col);
-                console.log(`检查位置 (${r1}, ${col}):`, tileAtPos);
-                if (tileAtPos !== null) {
-                    console.log('路径被阻挡');
-                    return false;
-                }
-            }
-            console.log('同行路径畅通，可以消除');
-            return true;
-        }
-        
-        if (c1 === c2) { // 同列
-            console.log('同列检查');
-            const startRow = Math.min(r1, r2) + 1;
-            const endRow = Math.max(r1, r2);
-            console.log(`检查行范围: ${startRow} 到 ${endRow}`);
-            
-            for (let row = startRow; row < endRow; row++) {
-                const tileAtPos = this.boardManager.getTileData(row, c1);
-                console.log(`检查位置 (${row}, ${c1}):`, tileAtPos);
-                if (tileAtPos !== null) {
-                    console.log('路径被阻挡');
-                    return false;
-                }
-            }
-            console.log('同列路径畅通，可以消除');
-            return true;
-        }
-        
-        console.log('不满足消除条件');
-        return false;
     }
     
     /**
@@ -636,7 +535,7 @@ export class GameManager extends Component {
             this.score += 10;
             
             console.log(`当前分数: ${this.score}`);
-            this.checkWinCondition();
+            this.logicManager.checkWinCondition();
         }, 400);
     }
     
@@ -951,15 +850,15 @@ export class GameManager extends Component {
         
         // 检查拖动组中每个麻将的移动路径
         for (const tile of this.dragGroup) {
-            if (!this.checkSingleTileMovePath(tile.row, tile.col, direction, steps)) {
+            if (!this.logicManager.checkSingleTileMovePath(tile.row, tile.col, direction, steps, this.dragGroup)) {
                 console.log(`麻将 (${tile.row}, ${tile.col}) 的移动路径被阻挡`);
                 return false;
             }
         }
         
         // 检查移动后的位置冲突
-        const newPositions = this.calculateNewPositions(this.dragGroup, direction, steps);
-        if (this.checkPositionConflicts(newPositions)) {
+        const newPositions = this.logicManager.calculateNewPositions(this.dragGroup, direction, steps);
+        if (this.logicManager.checkPositionConflicts(newPositions)) {
             console.log('移动后位置有冲突');
             return false;
         }
@@ -1080,11 +979,11 @@ export class GameManager extends Component {
         console.log('当前拖动组:', this.dragGroup);
         
         // 使用统一的方法计算新位置
-        const newPositions = this.calculateNewPositions(this.dragGroup, direction, steps);
+        const newPositions = this.logicManager.calculateNewPositions(this.dragGroup, direction, steps);
         console.log('计算的新位置:', newPositions);
         
         // 检查新位置是否有冲突
-        const hasConflict = this.checkPositionConflicts(newPositions);
+        const hasConflict = this.logicManager.checkPositionConflicts(newPositions);
         console.log('位置冲突检查:', hasConflict);
         
         if (!hasConflict) {
@@ -1267,7 +1166,7 @@ export class GameManager extends Component {
                 // 跳过空位置和自己
                 if (!this.boardManager.getTileData(r, c) || (r === originalDragTileNewPos.row && c === originalDragTileNewPos.col)) continue;
                 
-                if (this.canEliminate(originalDragTileNewPos.row, originalDragTileNewPos.col, r, c)) {
+                if (this.logicManager.canEliminate(originalDragTileNewPos.row, originalDragTileNewPos.col, r, c)) {
                     eliminablePairs.push({
                         row1: originalDragTileNewPos.row,
                         col1: originalDragTileNewPos.col,
@@ -1324,7 +1223,7 @@ export class GameManager extends Component {
                     // 跳过空位置和自己
                     if (!this.boardManager.getTileData(r, c) || (r === newPos.row && c === newPos.col)) continue;
                     
-                    if (this.canEliminate(newPos.row, newPos.col, r, c)) {
+                    if (this.logicManager.canEliminate(newPos.row, newPos.col, r, c)) {
                         // 检查这个消除对是否已经存在（避免重复）
                         const exists = eliminablePairs.some(pair => 
                             (pair.row1 === newPos.row && pair.col1 === newPos.col && pair.row2 === r && pair.col2 === c) ||
