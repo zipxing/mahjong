@@ -422,10 +422,12 @@ export class GameManager extends Component {
      * 功能：
      * - 按麻将类型预先创建虚影节点
      * - 每种类型预创建足够数量，内容完全配置好
+     * - 支持SpriteAtlas和Label两种渲染模式
      * - 避免拖拽时的任何创建和配置开销
      */
     private initShadowPool() {
-        console.log('初始化按类型分类的虚影对象池...');
+        const renderMode = this.mahjongAtlas ? 'SpriteAtlas' : 'Label';
+        console.log(`🎨 初始化按类型分类的虚影对象池 (渲染模式: ${renderMode})...`);
         
         // 清空现有对象池
         this.shadowPoolByType.forEach(pool => {
@@ -446,11 +448,26 @@ export class GameManager extends Component {
             }
             
             this.shadowPoolByType.set(tileType, typePool);
-            console.log(`  类型 ${tileType} (${this.tileTypes[tileType]}): 预创建 ${this.POOL_SIZE_PER_TYPE} 个节点`);
         }
         
+        // 统计渲染模式使用情况
+        let spriteCount = 0;
+        let labelCount = 0;
+        this.shadowPoolByType.forEach(pool => {
+            pool.forEach(node => {
+                if ((node as any).renderMode === 'Sprite') {
+                    spriteCount++;
+                } else {
+                    labelCount++;
+                }
+            });
+        });
+        
         const totalNodes = this.tileTypes.length * this.POOL_SIZE_PER_TYPE;
-        console.log(`✅ 虚影对象池初始化完成，总计预创建 ${totalNodes} 个节点`);
+        console.log(`✅ 虚影对象池初始化完成！`);
+        console.log(`   📊 总节点数: ${totalNodes} (${this.tileTypes.length}种类型 × ${this.POOL_SIZE_PER_TYPE}个/类型)`);
+        console.log(`   🎨 渲染统计: Sprite=${spriteCount}, Label=${labelCount}`);
+        console.log(`   ⚡ DrawCall优化: ${spriteCount > 0 ? '已启用' : '未启用 (需配置SpriteAtlas)'}`);
     }
     
     /**
@@ -463,6 +480,56 @@ export class GameManager extends Component {
         const shadowTransform = shadowNode.addComponent(UITransform);
         shadowTransform.setContentSize(this.tileSize, this.tileSize);
         
+        // 优先尝试使用SpriteAtlas，失败则使用Label
+        if (this.mahjongAtlas && this.createSpriteBasedShadow(shadowNode, tileType)) {
+            // Sprite模式创建成功
+            (shadowNode as any).renderMode = 'Sprite';
+        } else {
+            this.createLabelBasedShadow(shadowNode, tileType);
+            (shadowNode as any).renderMode = 'Label';
+        }
+        
+        // 设置半透明效果
+        const uiOpacity = shadowNode.addComponent(UIOpacity);
+        uiOpacity.opacity = 150; // 半透明
+        
+        // 存储类型信息
+        (shadowNode as any).tileType = tileType;
+        
+        return shadowNode;
+    }
+    
+    /**
+     * 为虚影节点创建基于Sprite的渲染
+     * 
+     * @param shadowNode 虚影节点
+     * @param tileType 麻将类型索引
+     * @returns 是否创建成功
+     */
+    private createSpriteBasedShadow(shadowNode: Node, tileType: number): boolean {
+        try {
+            const spriteFrameName = this.getSpriteFrameName(tileType);
+            const spriteFrame = this.mahjongAtlas.getSpriteFrame(spriteFrameName);
+            
+            if (spriteFrame) {
+                const sprite = shadowNode.addComponent(Sprite);
+                sprite.spriteFrame = spriteFrame;
+                sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+                return true;
+            }
+        } catch (error) {
+            console.warn(`创建Sprite虚影失败 (类型 ${tileType}):`, error);
+        }
+        return false;
+    }
+    
+    /**
+     * 为虚影节点创建基于Label的渲染
+     * 
+     * @param shadowNode 虚影节点
+     * @param tileType 麻将类型索引
+     */
+    private createLabelBasedShadow(shadowNode: Node, tileType: number): void {
         // 添加Label子节点并完全配置
         const labelNode = new Node('Label');
         const labelTransform = labelNode.addComponent(UITransform);
@@ -492,15 +559,6 @@ export class GameManager extends Component {
         }
         
         shadowNode.addChild(labelNode);
-        
-        // 设置半透明效果
-        const uiOpacity = shadowNode.addComponent(UIOpacity);
-        uiOpacity.opacity = 150; // 半透明
-        
-        // 存储类型信息
-        (shadowNode as any).tileType = tileType;
-        
-        return shadowNode;
     }
     
     /**
