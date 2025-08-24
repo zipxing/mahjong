@@ -38,6 +38,9 @@ export class TileManager {
     // ==================== 高亮显示 ====================
     private highlightedTiles: Node[] = [];  // 当前高亮的麻将节点列表
     
+    // ==================== 选择状态 ====================
+    private selectedTile: {row: number, col: number, node: Node} | null = null;  // 当前选中的麻将
+    
     /**
      * 初始化麻将管理器
      */
@@ -543,5 +546,90 @@ export class TileManager {
     
     getTileSize(): number {
         return this.tileSize;
+    }
+    
+    // ==================== 选择管理方法 ====================
+    
+    /**
+     * 获取当前选中的麻将
+     */
+    getSelectedTile(): {row: number, col: number, node: Node} | null {
+        return this.selectedTile;
+    }
+    
+    /**
+     * 智能消除选择（从GameManager迁移）
+     */
+    selectTileWithSmartElimination(row: number, col: number, tileNode: Node, 
+                                   getEliminableOptions: (r: number, c: number) => Array<{row1: number, col1: number, row2: number, col2: number}>,
+                                   eliminatePair: (r1: number, c1: number, r2: number, c2: number) => void,
+                                   boardManager?: any, boardSize?: number, canEliminateCallback?: (r1: number, c1: number, r2: number, c2: number) => boolean) {
+        console.log(`--- 智能消除选择: (${row}, ${col}) ---`);
+        
+        // 检查当前麻将可以消除的所有选项
+        const eliminableOptions = getEliminableOptions(row, col);
+        console.log(`找到 ${eliminableOptions.length} 个可消除选项:`, eliminableOptions);
+        
+        if (eliminableOptions.length === 1) {
+            // 只有一个可消除选项，直接自动消除
+            console.log('只有一个选项，自动消除');
+            const option = eliminableOptions[0];
+            eliminatePair(option.row1, option.col1, option.row2, option.col2);
+        } else if (eliminableOptions.length > 1) {
+            // 有多个可消除选项，选择当前麻将并高亮所有可消除的选项
+            console.log('有多个选项，显示高亮供用户选择');
+            this.selectTile(row, col, tileNode, boardManager, boardSize, canEliminateCallback);
+        } else {
+            // 没有可消除的选项，依然选择这个麻将（让用户知道麻将类型）
+            console.log('没有可消除选项，正常选中');
+            this.selectTile(row, col, tileNode, boardManager, boardSize, canEliminateCallback);
+        }
+    }
+    
+    /**
+     * 选择麻将（从GameManager迁移）
+     */
+    selectTile(row: number, col: number, tileNode: Node, 
+               boardManager?: any, boardSize?: number, canEliminateCallback?: (r1: number, c1: number, r2: number, c2: number) => boolean) {
+        console.log(`=== 选择麻将: (${row}, ${col}) ===`);
+        
+        this.selectedTile = { row, col, node: tileNode };
+        this.highlightSelectedTile(tileNode);
+        
+        console.log('设置选中状态完成，当前选中:', this.selectedTile);
+        console.log('开始高亮可消除麻将...');
+        
+        if (boardManager && boardSize && canEliminateCallback) {
+            this.highlightEliminable(row, col, boardManager, boardSize, canEliminateCallback);
+        }
+        
+        console.log('高亮可消除麻将完成');
+        console.log('=== 选择麻将完成 ===');
+    }
+    
+    /**
+     * 清除选择状态（从GameManager迁移）
+     */
+    clearSelection() {
+        console.log('清除选择状态');
+        
+        if (this.selectedTile) {
+            console.log('当前选中的麻将:', this.selectedTile);
+            
+            // 检查选中麻将节点的有效性
+            if (this.selectedTile.node && this.selectedTile.node.isValid) {
+                console.log('清除选中麻将高亮');
+                this.clearTileHighlight(this.selectedTile.node);
+            } else {
+                console.log('选中的麻将节点无效，跳过清除高亮');
+            }
+        } else {
+            console.log('没有选中的麻将需要清除');
+        }
+        
+        console.log('清除所有高亮');
+        this.clearAllHighlights();
+        
+        this.selectedTile = null;
     }
 }

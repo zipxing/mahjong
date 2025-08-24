@@ -49,7 +49,7 @@ export class GameManager extends Component {
     mahjongAtlas: SpriteAtlas = null!;  // 麻将图集（用于DrawCall合批）
     
     // ==================== 游戏状态 ====================
-    private selectedTile: {row: number, col: number, node: Node} | null = null;  // 当前选中的麻将
+    // selectedTile 已迁移到 TileManager
     private score: number = 0;                                           // 当前游戏得分
     
     // ==================== 拖拽系统 ====================
@@ -100,7 +100,7 @@ export class GameManager extends Component {
         this.initManagers();
         
         // 重置游戏状态
-        this.selectedTile = null;
+        this.tileManager.clearSelection();
         this.score = 0;
         // highlightedTiles 已迁移到 TileManager
         this.logicManager.clearLastMoveRecord();
@@ -184,107 +184,45 @@ export class GameManager extends Component {
             return;
         }
         
-        console.log('当前选中状态:', this.selectedTile ? `(${this.selectedTile.row}, ${this.selectedTile.col})` : '无');
-        console.log('selectedTile对象:', this.selectedTile);
+        const selectedTile = this.tileManager.getSelectedTile();
+        console.log('当前选中状态:', selectedTile ? `(${selectedTile.row}, ${selectedTile.col})` : '无');
+        console.log('selectedTile对象:', selectedTile);
         
-        if (this.selectedTile) {
+        if (selectedTile) {
             // 如果点击的是同一个麻将，取消选择
-            if (this.selectedTile.row === row && this.selectedTile.col === col) {
+            if (selectedTile.row === row && selectedTile.col === col) {
                 console.log('点击相同麻将，取消选择');
-                this.clearSelection();
+                this.tileManager.clearSelection();
                 return;
             }
             
             // 检查是否可以消除
-            const canEliminate = this.logicManager.canEliminate(this.selectedTile.row, this.selectedTile.col, row, col);
+            const canEliminate = this.logicManager.canEliminate(selectedTile.row, selectedTile.col, row, col);
             console.log('消除检查结果:', canEliminate);
             
             if (canEliminate) {
                 console.log('可以消除，执行消除操作');
-                this.eliminatePair(this.selectedTile.row, this.selectedTile.col, row, col);
-                this.clearSelection();
+                this.eliminatePair(selectedTile.row, selectedTile.col, row, col);
+                this.tileManager.clearSelection();
             } else {
                 console.log('不能消除，选择新的麻将');
-                this.clearSelection();
-                this.selectTileWithSmartElimination(row, col, clickedTileNode);
+                this.tileManager.clearSelection();
+                this.tileManager.selectTileWithSmartElimination(row, col, clickedTileNode, 
+                    (r, c) => this.logicManager.getEliminableOptionsForTile(r, c),
+                    (r1, c1, r2, c2) => this.eliminatePair(r1, c1, r2, c2),
+                    this.boardManager, this.boardManager.getBoardSize(), (r1, c1, r2, c2) => this.logicManager.canEliminate(r1, c1, r2, c2));
             }
         } else {
             console.log('第一次选择麻将 - 使用智能消除');
-            this.selectTileWithSmartElimination(row, col, clickedTileNode);
+            this.tileManager.selectTileWithSmartElimination(row, col, clickedTileNode,
+                (r, c) => this.logicManager.getEliminableOptionsForTile(r, c),
+                (r1, c1, r2, c2) => this.eliminatePair(r1, c1, r2, c2),
+                this.boardManager, this.boardManager.getBoardSize(), (r1, c1, r2, c2) => this.logicManager.canEliminate(r1, c1, r2, c2));
         }
         console.log('=== 点击处理结束 ===');
     }
     
-    /**
-     * 智能消除选择 - 参考web版本实现
-     * 当选择一个麻将时，自动检查消除机会并执行相应操作
-     */
-    private selectTileWithSmartElimination(row: number, col: number, tileNode: Node) {
-        console.log(`--- 智能消除选择: (${row}, ${col}) ---`);
-        
-        // 检查当前麻将可以消除的所有选项
-        const eliminableOptions = this.logicManager.getEliminableOptionsForTile(row, col);
-        console.log(`找到 ${eliminableOptions.length} 个可消除选项:`, eliminableOptions);
-        
-        if (eliminableOptions.length === 1) {
-            // 只有一个可消除选项，直接自动消除
-            console.log('只有一个选项，自动消除');
-            const option = eliminableOptions[0];
-            this.eliminatePair(option.row1, option.col1, option.row2, option.col2);
-        } else if (eliminableOptions.length > 1) {
-            // 有多个可消除选项，选择当前麻将并高亮所有可消除的选项
-            console.log('有多个选项，显示高亮供用户选择');
-            this.selectTile(row, col, tileNode);
-        } else {
-            // 没有可消除的选项，依然选择这个麻将（让用户知道麻将类型）
-            console.log('没有可消除选项，正常选中');
-            this.selectTile(row, col, tileNode);
-        }
-    }
-    
-    /**
-     * 选择麻将
-     */
-    private selectTile(row: number, col: number, tileNode: Node) {
-        console.log(`=== 选择麻将: (${row}, ${col}) ===`);
-        
-        this.selectedTile = { row, col, node: tileNode };
-        this.tileManager.highlightSelectedTile(tileNode);
-        
-        console.log('设置选中状态完成，当前选中:', this.selectedTile);
-        console.log('开始高亮可消除麻将...');
-        this.tileManager.highlightEliminable(row, col, this.boardManager, this.boardManager.getBoardSize(), (r1, c1, r2, c2) => this.logicManager.canEliminate(r1, c1, r2, c2));
-        console.log('高亮可消除麻将完成');
-        
-        console.log('=== 选择麻将完成 ===');
-    }
-    
-    /**
-     * 清除选择状态
-     */
-    private clearSelection() {
-        console.log('清除选择状态');
-        
-        if (this.selectedTile) {
-            console.log('当前选中的麻将:', this.selectedTile);
-            
-            // 检查选中麻将节点的有效性
-            if (this.selectedTile.node && this.selectedTile.node.isValid) {
-                console.log('清除选中麻将高亮');
-                this.tileManager.clearTileHighlight(this.selectedTile.node);
-            } else {
-                console.log('选中的麻将节点无效，跳过清除高亮');
-            }
-        } else {
-            console.log('没有选中的麻将需要清除');
-        }
-        
-        console.log('清除所有高亮');
-        this.tileManager.clearAllHighlights();
-        
-        this.selectedTile = null;
-
-    }
+    // 选择相关方法已迁移到TileManager
     
     /**
      * 消除一对麻将
@@ -348,7 +286,7 @@ export class GameManager extends Component {
         
         // 消除后立即清除所有高亮状态
         this.tileManager.clearAllHighlights();
-        this.clearSelection();
+        this.tileManager.clearSelection();
         
         // 更新数据
         setTimeout(() => {
@@ -373,7 +311,7 @@ export class GameManager extends Component {
      */
     public restart() {
         console.log('重新开始游戏');
-        this.clearSelection();
+        this.tileManager.clearSelection();
         this.resetDragState();
         this.score = 0;
         this.init();
@@ -1007,7 +945,7 @@ export class GameManager extends Component {
             console.error('尝试清理状态...');
             
             // 发生错误时，尝试清理可能的不一致状态
-            this.clearSelection();
+            this.tileManager.clearSelection();
             this.tileManager.clearAllHighlights();
         } finally {
             // 无论成功还是失败，都清除移动记录
