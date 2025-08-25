@@ -85,6 +85,23 @@ export class ShadowPool {
         console.log(`   📊 总节点数: ${totalNodes} (${this.tileTypes.length}种类型 × ${this.POOL_SIZE_PER_TYPE}个/类型)`);
         console.log(`   🎨 渲染统计: Sprite=${spriteCount}, Label=${labelCount}`);
         console.log(`   ⚡ DrawCall优化: ${spriteCount > 0 ? '已启用' : '未启用 (需配置SpriteAtlas)'}`);
+        
+        // 🔍 调试：检查初始化后所有节点的状态
+        let activeNodes = 0;
+        this.shadowPoolByType.forEach(pool => {
+            pool.forEach(node => {
+                if (node.active) {
+                    activeNodes++;
+                    console.warn(`⚠️ 发现初始化后仍激活的节点: ${node.name}`);
+                }
+            });
+        });
+        
+        if (activeNodes > 0) {
+            console.error(`❌ 发现 ${activeNodes} 个节点在初始化后仍然可见！`);
+        } else {
+            console.log(`✅ 所有池节点正确隐藏`);
+        }
     }
     
     /**
@@ -222,6 +239,7 @@ export class ShadowPool {
         for (const shadowNode of typePool) {
             if (!shadowNode.active) {
                 shadowNode.active = true;
+                console.log(`🎯 从池中激活节点: ${shadowNode.name}`);
                 return shadowNode;
             }
         }
@@ -229,15 +247,78 @@ export class ShadowPool {
         console.warn(`类型 ${tileType} 的对象池已满，创建临时节点`);
         // 如果池子满了，创建临时节点
         const tempShadow = this.createShadowNodeForType(tileType);
+        tempShadow.active = true; // 临时节点需要激活才能使用
         tempShadow.setParent(this.parentNode);
         return tempShadow;
     }
     
     /**
+     * 获取清晰的麻将节点（透明度255）
+     * 用于棋盘生成，复用虚影对象池的创建逻辑
+     * 
+     * @param tileType 麻将类型索引
+     * @returns 清晰的麻将节点
+     */
+    getClearTileFromPool(tileType: number): Node | null {
+        // 先从现有池子获取节点
+        const shadowNode = this.getShadowFromPool(tileType);
+        if (!shadowNode) {
+            return null;
+        }
+        
+        // 修改透明度为完全不透明
+        const opacity = shadowNode.getComponent(UIOpacity);
+        if (opacity) {
+            opacity.opacity = 255; // 完全不透明
+        }
+        
+        // 标记为清晰麻将而非虚影
+        (shadowNode as any).isClearTile = true;
+        
+        return shadowNode;
+    }
+
+    /**
+     * 归还清晰麻将到对象池
+     * 需要重置透明度为虚影状态
+     */
+    returnClearTileToPool(tileNode: Node) {
+        // 🔒 安全检查：确保节点有效
+        if (!tileNode || !tileNode.isValid) {
+            console.warn(`⚠️ 尝试归还无效的清晰麻将节点，跳过处理`);
+            return;
+        }
+
+        console.log(`🔙 归还清晰麻将: ${tileNode.name}, 当前active: ${tileNode.active}`);
+        
+        try {
+            // 重置为虚影透明度
+            const opacity = tileNode.getComponent(UIOpacity);
+            if (opacity) {
+                opacity.opacity = 150; // 恢复虚影透明度
+            }
+            
+            // 清除清晰麻将标记
+            delete (tileNode as any).isClearTile;
+            
+            // 调用原有的归还方法
+            this.returnShadowToPool(tileNode);
+        } catch (error) {
+            console.error(`❌ 归还清晰麻将时出错: ${error.message}`, tileNode.name);
+        }
+    }
+
+    /**
      * 归还虚影节点到对应类型的对象池
      * （从GameManager.returnShadowToPool()直接复制）
      */
     returnShadowToPool(shadowNode: Node) {
+        // 🔒 安全检查：确保节点有效
+        if (!shadowNode || !shadowNode.isValid) {
+            console.warn(`⚠️ 尝试归还无效的节点，跳过处理`);
+            return;
+        }
+
         const tileType = (shadowNode as any).tileType;
         
         // 检查是否是对象池中的节点
@@ -256,15 +337,50 @@ export class ShadowPool {
         
         if (isPoolNode) {
             // 对象池节点：隐藏并重置
-            shadowNode.active = false;
-            shadowNode.setPosition(Vec3.ZERO);
-            shadowNode.setScale(Vec3.ONE);
+            try {
+                shadowNode.active = false;
+                shadowNode.setPosition(Vec3.ZERO);
+                shadowNode.setScale(Vec3.ONE);
+                console.log(`🔄 归还池节点: ${shadowNode.name}`);
+            } catch (error) {
+                console.error(`❌ 归还池节点时出错: ${error.message}`, shadowNode.name);
+            }
         } else {
             // 临时节点：直接销毁
-            shadowNode.destroy();
+            try {
+                console.log(`🗑️ 销毁临时节点: ${shadowNode.name}`);
+                shadowNode.destroy();
+            } catch (error) {
+                console.error(`❌ 销毁临时节点时出错: ${error.message}`, shadowNode.name);
+            }
         }
     }
     
+    /**
+     * 🔍 调试方法：获取当前对象池状态
+     */
+    getPoolStatus(): string {
+        let totalNodes = 0;
+        let activeNodes = 0;
+        let poolStatusLines: string[] = [];
+        
+        this.shadowPoolByType.forEach((pool, tileType) => {
+            let typeActiveCount = 0;
+            pool.forEach(node => {
+                totalNodes++;
+                if (node.active) {
+                    activeNodes++;
+                    typeActiveCount++;
+                }
+            });
+            
+            poolStatusLines.push(`类型${tileType}: ${typeActiveCount}/${pool.length} 激活`);
+        });
+        
+        const summary = `📊 ShadowPool状态: ${activeNodes}/${totalNodes} 节点激活`;
+        return [summary, ...poolStatusLines].join('\n   ');
+    }
+
     /**
      * 清除所有虚影节点
      */

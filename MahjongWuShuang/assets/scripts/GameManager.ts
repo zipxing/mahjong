@@ -106,7 +106,8 @@ export class GameManager extends Component {
         this.logicManager.clearLastMoveRecord();
         console.log('游戏状态已重置');
         
-        this.boardManager.generateSimplePairs(this.tileManager);
+        // 🆕 传递shadowPool参数，从对象池获取清晰麻将节点
+        this.boardManager.generateSimplePairs(this.tileManager, this.shadowPool);
         this.boardManager.renderBoard(this.tileManager);
         
         console.log('游戏初始化完成！');
@@ -165,6 +166,12 @@ export class GameManager extends Component {
      * 归还虚影节点到对应类型的对象池
      */
     private returnShadowToPool(shadowNode: Node) {
+        // 🔒 安全检查：确保节点有效
+        if (!shadowNode || !shadowNode.isValid) {
+            console.warn(`⚠️ GameManager尝试归还无效节点，跳过处理`);
+            return;
+        }
+        
         this.shadowPool.returnShadowToPool(shadowNode);
     }
     
@@ -382,24 +389,38 @@ export class GameManager extends Component {
     private updateDragGroupShadowsPosition(currentPos: Vec3, dragDirection: 'horizontal' | 'vertical' | null) {
         if (this.dragShadows.length === 0) return;
         
-        this.dragShadows.forEach(shadow => {
-            const relativeOffsetX = (shadow as any).relativeOffsetX || 0;
-            const relativeOffsetY = (shadow as any).relativeOffsetY || 0;
-            const originalWorldX = (shadow as any).originalWorldX || 0;
-            const originalWorldY = (shadow as any).originalWorldY || 0;
-            
-            let shadowX = currentPos.x + relativeOffsetX;
-            let shadowY = currentPos.y + relativeOffsetY;
-            
-            // 根据拖拽方向约束移动
-            if (dragDirection === 'horizontal') {
-                shadowY = originalWorldY; // 固定Y坐标
-            } else if (dragDirection === 'vertical') {
-                shadowX = originalWorldX; // 固定X坐标
+        // 🔒 安全遍历：过滤无效节点
+        const validShadows = this.dragShadows.filter(shadow => shadow && shadow.isValid);
+        const invalidCount = this.dragShadows.length - validShadows.length;
+        
+        if (invalidCount > 0) {
+            console.warn(`⚠️ updateDragGroupShadowsPosition: 发现 ${invalidCount} 个无效虚影，已过滤`);
+            // 清理无效节点
+            this.dragShadows = validShadows;
+        }
+        
+        validShadows.forEach(shadow => {
+            try {
+                const relativeOffsetX = (shadow as any).relativeOffsetX || 0;
+                const relativeOffsetY = (shadow as any).relativeOffsetY || 0;
+                const originalWorldX = (shadow as any).originalWorldX || 0;
+                const originalWorldY = (shadow as any).originalWorldY || 0;
+                
+                let shadowX = currentPos.x + relativeOffsetX;
+                let shadowY = currentPos.y + relativeOffsetY;
+                
+                // 根据拖拽方向约束移动
+                if (dragDirection === 'horizontal') {
+                    shadowY = originalWorldY; // 固定Y坐标
+                } else if (dragDirection === 'vertical') {
+                    shadowX = originalWorldX; // 固定X坐标
+                }
+                
+                shadow.setWorldPosition(shadowX, shadowY, 0);
+                console.log(`🔄 更新虚影位置: ${shadow.name} -> (${shadowX.toFixed(1)}, ${shadowY.toFixed(1)})`);
+            } catch (error) {
+                console.error(`❌ 更新虚影位置时出错: ${error.message}`, shadow.name);
             }
-            
-            shadow.setWorldPosition(shadowX, shadowY, 0);
-            console.log(`🔄 更新虚影位置: ${shadow.name} -> (${shadowX.toFixed(1)}, ${shadowY.toFixed(1)})`);
         });
     }
     
@@ -411,7 +432,23 @@ export class GameManager extends Component {
      * - 清空虚影节点数组
      */
     private clearDragShadows() {
-        this.dragShadows.forEach(shadow => this.returnShadowToPool(shadow));
+        // 🔒 安全遍历：过滤掉无效节点
+        const validShadows = this.dragShadows.filter(shadow => shadow && shadow.isValid);
+        const invalidCount = this.dragShadows.length - validShadows.length;
+        
+        if (invalidCount > 0) {
+            console.warn(`⚠️ 发现 ${invalidCount} 个无效的虚影节点，已过滤`);
+        }
+        
+        // 安全归还有效的虚影节点
+        validShadows.forEach(shadow => {
+            try {
+                this.returnShadowToPool(shadow);
+            } catch (error) {
+                console.error(`❌ 归还虚影节点时出错: ${error.message}`, shadow.name);
+            }
+        });
+        
         this.dragShadows = [];
     }
     

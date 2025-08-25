@@ -155,7 +155,7 @@ export class BoardManager {
     }
     
     /**
-     * 将网格坐标转换为世界坐标
+     * 将网格坐标转换为GameBoard的本地坐标
      * （从GameManager中提取相关逻辑）
      */
     gridToWorld(row: number, col: number): Vec3 {
@@ -175,19 +175,12 @@ export class BoardManager {
         const localX = col * gridUnit + this.tileSize / 2;
         const localY = row * gridUnit + this.tileSize / 2;
         
-        // 转换为相对于棋盘中心的坐标
+        // 转换为相对于棋盘中心的坐标（本地坐标）
         const offsetX = localX - boardWidth / 2;
         const offsetY = boardHeight / 2 - localY;  // Y轴翻转
         
-        // 获取棋盘的世界位置
-        const gameBoardWorldPos = this.gameBoardNode.getWorldPosition();
-        
-        // 计算最终的世界坐标
-        return new Vec3(
-            gameBoardWorldPos.x + offsetX,
-            gameBoardWorldPos.y + offsetY,
-            gameBoardWorldPos.z
-        );
+        // 返回本地坐标（相对于GameBoard节点）
+        return new Vec3(offsetX, offsetY, 0);
     }
     
     // ==================== 数据访问方法 ====================
@@ -292,12 +285,42 @@ export class BoardManager {
     }
 
     /**
-     * 生成配对麻将 - 确保每种类型都有偶数个
-     * （从GameManager.generateSimplePairs()迁移）
+     * 清空棋盘 - 归还所有节点到ShadowPool
+     */
+    private clearBoard(shadowPool?: any) {
+        let returnedNodes = 0;
+        
+        for (let row = 0; row < this.boardSize; row++) {
+            for (let col = 0; col < this.boardSize; col++) {
+                const node = this.tileNodes[row][col];
+                if (node && shadowPool) {
+                    // 归还清晰麻将到对象池
+                    shadowPool.returnClearTileToPool(node);
+                    returnedNodes++;
+                }
+                
+                this.board[row][col] = null;
+                this.tileNodes[row][col] = null;
+            }
+        }
+        
+        if (returnedNodes > 0) {
+            console.log(`🧹 清空棋盘：归还了 ${returnedNodes} 个节点到ShadowPool`);
+        }
+    }
+
+    /**
+     * 生成配对麻将 - 从ShadowPool获取清晰麻将节点
+     * （从GameManager.generateSimplePairs()迁移并优化）
      * 
      * @param tileManager TileManager实例，用于获取麻将类型
+     * @param shadowPool ShadowPool实例，用于获取清晰麻将节点
      */
-    generateSimplePairs(tileManager: any): void {
+    generateSimplePairs(tileManager: any, shadowPool?: any): void {
+        // 清空现有棋盘数据和节点
+        if (shadowPool) {
+            this.clearBoard(shadowPool);
+        }
         const tiles: TileData[] = [];
         const totalTiles = this.boardSize * this.boardSize; // 64个位置
         
@@ -305,9 +328,9 @@ export class BoardManager {
         const tilesPerType = Math.floor(totalTiles / tileManager.getTileTypes().length);
         const adjustedTilesPerType = tilesPerType % 2 === 0 ? tilesPerType : tilesPerType - 1;
         
-        console.log(`${this.boardSize}x${this.boardSize}棋盘，每种类型生成 ${adjustedTilesPerType} 个麻将`);
+        console.log(`🎲 ${this.boardSize}x${this.boardSize}棋盘，每种类型生成 ${adjustedTilesPerType} 个麻将`);
         
-        // 为每种类型生成偶数个麻将
+        // 为每种类型生成偶数个麻将数据
         const tileTypes = tileManager.getTileTypes();
         for (let i = 0; i < tileTypes.length; i++) {
             for (let j = 0; j < adjustedTilesPerType; j++) {
@@ -319,13 +342,13 @@ export class BoardManager {
             }
         }
         
-        // 简单洗牌
+        // 洗牌算法
         for (let i = tiles.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [tiles[i], tiles[j]] = [tiles[j], tiles[i]];
         }
         
-        // 如果麻将数量不足64个，补充到64个
+        // 如果麻将数量不足，补充到总数
         while (tiles.length < totalTiles) {
             const randomType = Math.floor(Math.random() * tileTypes.length);
             tiles.push({
@@ -341,35 +364,96 @@ export class BoardManager {
             [tiles[i], tiles[j]] = [tiles[j], tiles[i]];
         }
         
-        // 填充到棋盘
+        // 🆕 从ShadowPool获取清晰麻将节点并填充到棋盘（如果有ShadowPool）
+        if (shadowPool) {
+            this.fillBoardFromShadowPool(tiles, shadowPool);
+        } else {
+            // 传统方式：仅填充数据到棋盘
+            this.fillBoardDataOnly(tiles);
+        }
+        
+        console.log(`✅ 棋盘生成完成: ${tiles.length} 个数据`);
+    }
+
+    /**
+     * 从ShadowPool获取清晰麻将节点并填充到棋盘
+     */
+    private fillBoardFromShadowPool(tiles: TileData[], shadowPool: any): void {
+        let tileIndex = 0;
+        let nodesCreated = 0;
+        
+        for (let row = 0; row < this.boardSize; row++) {
+            for (let col = 0; col < this.boardSize; col++) {
+                if (tileIndex < tiles.length) {
+                    const tileData = tiles[tileIndex++];
+                    
+                    // 🎯 从ShadowPool获取清晰麻将节点
+                    const tileNode = shadowPool.getClearTileFromPool(tileData.type);
+                    
+                    if (tileNode) {
+                        // 设置棋盘数据
+                        this.board[row][col] = tileData;
+                        this.tileNodes[row][col] = tileNode;
+                        
+                        // 设置节点的额外信息
+                        (tileNode as any).tileData = tileData;
+                        (tileNode as any).gridRow = row;
+                        (tileNode as any).gridCol = col;
+                        
+                        // 先设置正确的父节点
+                        if (tileNode.parent !== this.gameBoardNode) {
+                            tileNode.setParent(this.gameBoardNode);
+                        }
+                        
+                        // 然后设置节点位置（基于GameBoard坐标系）
+                        const localPos = this.gridToWorld(row, col);
+                        tileNode.setPosition(localPos);
+                        
+                        if (nodesCreated < 3) { // 只显示前3个节点的详细信息
+                            console.log(`📍 ShadowPool节点 [${row},${col}] 位置设置为: ${localPos.x.toFixed(1)}, ${localPos.y.toFixed(1)}`);
+                        }
+                        nodesCreated++;
+                    } else {
+                        console.warn(`⚠️ 无法从ShadowPool获取类型 ${tileData.type} 的节点`);
+                        // 退回到仅设置数据
+                        this.board[row][col] = tileData;
+                        this.tileNodes[row][col] = null;
+                    }
+                }
+            }
+        }
+        
+        console.log(`📦 从ShadowPool创建了 ${nodesCreated} 个清晰麻将节点`);
+        
+        // 🔍 调试：输出池状态
+        if (shadowPool && shadowPool.getPoolStatus) {
+            console.log(shadowPool.getPoolStatus());
+        }
+    }
+
+    /**
+     * 传统方式：仅填充数据到棋盘（不创建节点）
+     */
+    private fillBoardDataOnly(tiles: TileData[]): void {
         let tileIndex = 0;
         for (let row = 0; row < this.boardSize; row++) {
             for (let col = 0; col < this.boardSize; col++) {
-                // 直接设置到棋盘数据
-                this.board[row][col] = tiles[tileIndex++];
+                if (tileIndex < tiles.length) {
+                    // 直接设置到棋盘数据
+                    this.board[row][col] = tiles[tileIndex++];
+                    this.tileNodes[row][col] = null; // 节点由其他地方创建
+                }
             }
         }
         
-        console.log(`生成了 ${tiles.length} 个麻将，填满 ${this.boardSize}x${this.boardSize} 棋盘`);
-        
-        // 打印棋盘布局用于调试
-        console.log('=== 棋盘布局 ===');
-        for (let row = 0; row < this.boardSize; row++) {
-            let rowStr = `第${row}行: `;
-            for (let col = 0; col < this.boardSize; col++) {
-                const tile = this.board[row][col];
-                rowStr += tile ? `${tile.symbol}(${tile.type}) ` : 'null ';
-            }
-            console.log(rowStr);
-        }
-        console.log('=== 棋盘布局结束 ===');
+        console.log(`📋 填充了 ${tiles.length} 个麻将数据（无节点创建）`);
     }
 
     /**
      * 渲染棋盘
      * （从GameManager.renderBoard()迁移）
      * 
-     * @param tileManager TileManager实例，用于创建麻将节点
+     * @param tileManager TileManager实例，用于创建麻将节点（仅在传统模式下使用）
      */
     renderBoard(tileManager: any): void {
         console.log('开始渲染棋盘...');
@@ -379,36 +463,65 @@ export class BoardManager {
             return;
         }
         
-        // 清空现有节点
+        // 🔍 检查是否已经有节点存在（来自ShadowPool）
+        let existingNodes = 0;
+        let missingNodes = 0;
+        
+        for (let row = 0; row < this.boardSize; row++) {
+            for (let col = 0; col < this.boardSize; col++) {
+                const tile = this.board[row][col];
+                const node = this.tileNodes[row][col];
+                
+                if (tile && node) {
+                    existingNodes++;
+                } else if (tile && !node) {
+                    missingNodes++;
+                }
+            }
+        }
+        
+        if (existingNodes > 0) {
+            console.log(`✅ 发现 ${existingNodes} 个已存在的节点（来自ShadowPool），跳过重复创建`);
+            
+            if (missingNodes > 0) {
+                console.warn(`⚠️ 发现 ${missingNodes} 个缺失节点，将使用传统方式创建`);
+                this.renderMissingNodes(tileManager);
+            }
+            
+            // 确保所有节点都添加到GameBoard
+            this.ensureNodesInGameBoard();
+            return;
+        }
+        
+        // 传统模式：清空并重新创建所有节点
+        console.log('🔄 使用传统模式渲染棋盘');
         this.gameBoardNode.removeAllChildren();
-        
-        // 计算起始位置
-        const boardSize = this.boardSize;
-        const tileSize = this.tileSize;
-        const tileGap = this.tileGap;
-        const boardWidth = boardSize * tileSize + (boardSize - 1) * tileGap;
-        const boardHeight = boardSize * tileSize + (boardSize - 1) * tileGap;
-        const startX = -boardWidth / 2 + tileSize / 2;
-        const startY = boardHeight / 2 - tileSize / 2;
-        
+        this.renderAllNodesTraditionally(tileManager);
+    }
+
+    /**
+     * 渲染缺失的节点（混合模式）
+     */
+    private renderMissingNodes(tileManager: any): void {
         let tilesCreated = 0;
         
-        // 创建麻将节点
-        for (let row = 0; row < boardSize; row++) {
-            for (let col = 0; col < boardSize; col++) {
+        for (let row = 0; row < this.boardSize; row++) {
+            for (let col = 0; col < this.boardSize; col++) {
                 const tile = this.board[row][col];
-                if (tile) {
-                    // 使用TileManager创建麻将节点
+                const node = this.tileNodes[row][col];
+                
+                if (tile && !node) {
+                    // 使用TileManager创建缺失的节点
                     const tileNode = tileManager.createTileNode(tile, this.gameBoardNode);
                     
                     // 设置位置
-                    const x = startX + col * (tileSize + tileGap);
-                    const y = startY - row * (tileSize + tileGap);
-                    tileNode.setPosition(x, y, 0);
+                    const worldPos = this.gridToWorld(row, col);
+                    tileNode.setPosition(worldPos);
                     
                     // 存储网格坐标到节点
                     (tileNode as any).gridRow = row;
                     (tileNode as any).gridCol = col;
+                    (tileNode as any).tileData = tile;
                     
                     // 设置到tileNodes数组
                     this.tileNodes[row][col] = tileNode;
@@ -417,7 +530,79 @@ export class BoardManager {
             }
         }
         
-        console.log(`渲染完成，创建了 ${tilesCreated} 个麻将节点`);
+        console.log(`🔧 补充创建了 ${tilesCreated} 个缺失节点`);
+    }
+
+    /**
+     * 传统方式渲染所有节点
+     */
+    private renderAllNodesTraditionally(tileManager: any): void {
+        let tilesCreated = 0;
+        
+        for (let row = 0; row < this.boardSize; row++) {
+            for (let col = 0; col < this.boardSize; col++) {
+                const tile = this.board[row][col];
+                if (tile) {
+                    // 使用TileManager创建麻将节点
+                    const tileNode = tileManager.createTileNode(tile, this.gameBoardNode);
+                    
+                    // 设置位置
+                    const worldPos = this.gridToWorld(row, col);
+                    tileNode.setPosition(worldPos);
+                    
+                    // 存储网格坐标到节点
+                    (tileNode as any).gridRow = row;
+                    (tileNode as any).gridCol = col;
+                    (tileNode as any).tileData = tile;
+                    
+                    // 设置到tileNodes数组
+                    this.tileNodes[row][col] = tileNode;
+                    tilesCreated++;
+                }
+            }
+        }
+        
+        console.log(`🔄 传统模式创建了 ${tilesCreated} 个麻将节点`);
+    }
+
+    /**
+     * 确保所有节点都添加到GameBoard中，并重新设置正确位置
+     */
+    private ensureNodesInGameBoard(): void {
+        let addedNodes = 0;
+        let repositionedNodes = 0;
+        
+        for (let row = 0; row < this.boardSize; row++) {
+            for (let col = 0; col < this.boardSize; col++) {
+                const node = this.tileNodes[row][col];
+                if (node) {
+                    // 检查是否需要改变父节点
+                    if (node.parent !== this.gameBoardNode) {
+                        node.setParent(this.gameBoardNode);
+                        addedNodes++;
+                    }
+                    
+                    // 重新设置位置（使用GameBoard的坐标系）
+                    const worldPos = this.gridToWorld(row, col);
+                    const currentPos = node.getPosition();
+                    
+                    // 只有位置不对时才重新设置
+                    if (Math.abs(currentPos.x - worldPos.x) > 1 || 
+                        Math.abs(currentPos.y - worldPos.y) > 1) {
+                        node.setPosition(worldPos);
+                        repositionedNodes++;
+                        console.log(`📍 重新定位节点 [${row},${col}]: ${currentPos.x.toFixed(1)},${currentPos.y.toFixed(1)} → ${worldPos.x.toFixed(1)},${worldPos.y.toFixed(1)}`);
+                    }
+                }
+            }
+        }
+        
+        if (addedNodes > 0) {
+            console.log(`🔗 将 ${addedNodes} 个节点添加到GameBoard`);
+        }
+        if (repositionedNodes > 0) {
+            console.log(`📍 重新定位了 ${repositionedNodes} 个节点`);
+        }
     }
     
     // ==================== Setter方法 ====================
