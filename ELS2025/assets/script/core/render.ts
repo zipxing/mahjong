@@ -80,23 +80,22 @@ export class ElsRender extends nge.Render {
             var gameAreaBaseX = 216; // 游戏区域起始X
             var gameAreaBaseY = 213; // 游戏区域起始Y
             
-            // 计算方块的最终落地位置（虚影应该显示在这里）
-            var shadowY_target = cy;
-            // 向下寻找最终落地位置
-            while (shadowY_target < els.ZONG - 1) {
-                // 检查下一行是否可以放置方块
-                var canMove = true;
-                // 这里应该检查当前方块形状在下一行的位置是否与现有方块冲突
-                // 为了简化，我们先使用一个基本的计算
-                if (dat[(shadowY_target + 1) * els.GRIDW + cx + 2] != 0) {
-                    break; // 遇到障碍物，停止下降
-                }
-                shadowY_target++;
-            }
+            // 使用已经计算好的正确落地位置
+            // 确保testDDown已经被调用来计算tdx和tdy
+            this.grid.testDDown();
+            
+            // 使用正确的落地位置
+            var targetX = this.grid.mcore.tdx;
+            var targetY = this.grid.mcore.tdy;
             
             // 根据落地位置计算虚影显示位置
-            var shadowX = gameAreaBaseX + cx * bs;
-            var shadowY = gameAreaBaseY + (els.ZONG - shadowY_target - 1) * bs;
+            var shadowX = gameAreaBaseX + targetX * bs;
+            var shadowY = gameAreaBaseY + (els.ZONG - targetY - 2) * bs; // 向下移动一个单元格
+            
+            // 应用方块类型和旋转状态的位置微调
+            var offset = els.BLK_C_OFFSET[cb][cz];
+            shadowX += offset[0] * bs;
+            shadowY += offset[1] * bs;
             
             customShadow.setPosition(shadowX, shadowY, 0);
             customShadow.setScale(1, 1, 1);
