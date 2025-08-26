@@ -1,0 +1,55 @@
+
+elsfk_spine_mty.png
+size: 512,128
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+elsfk_spine_mty01
+  rotate: true
+  xy: 2, 25
+  size: 101, 162
+  orig: 101, 162
+  offset: 0, 0
+  index: -1
+elsfk_spine_mty02
+  rotate: false
+  xy: 252, 82
+  size: 44, 44
+  orig: 44, 44
+  offset: 0, 0
+  index: -1
+elsfk_spine_mty03
+  rotate: false
+  xy: 298, 82
+  size: 44, 44
+  orig: 44, 44
+  offset: 0, 0
+  index: -1
+elsfk_spine_mty04
+  rotate: false
+  xy: 166, 59
+  size: 41, 67
+  orig: 41, 67
+  offset: 0, 0
+  index: -1
+elsfk_spine_mty05
+  rotate: false
+  xy: 209, 59
+  size: 41, 67
+  orig: 41, 67
+  offset: 0, 0
+  index: -1
+elsfk_spine_mty06
+  rotate: false
+  xy: 166, 46
+  size: 46, 11
+  orig: 46, 11
+  offset: 0, 0
+  index: -1
+elsfk_spine_mty07
+  rotate: false
+  xy: 2, 2
+  size: 18, 21
+  orig: 18, 21
+  offset: 0, 0
+  index: -1

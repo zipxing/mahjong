@@ -1,0 +1,88 @@
+{
+  "ver": "1.0.6",
+  "importer": "bitmap-font",
+  "imported": true,
+  "uuid": "2be1b7a9-4fd6-41fd-a75e-fc5cfce57a73",
+  "files": [
+    ".json"
+  ],
+  "subMetas": {},
+  "userData": {
+    "_fntConfig": {
+      "commonHeight": 100,
+      "fontSize": 32,
+      "atlasName": "123.png",
+      "fontDefDictionary": {
+        "9": {
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          },
+          "xOffset": 0,
+          "yOffset": 0,
+          "xAdvance": 368
+        },
+        "32": {
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          },
+          "xOffset": 0,
+          "yOffset": 0,
+          "xAdvance": 46
+        },
+        "48": {
+          "rect": {
+            "x": 0,
+            "y": 99,
+            "width": 72,
+            "height": 98
+          },
+          "xOffset": 0,
+          "yOffset": 2,
+          "xAdvance": 52
+        },
+        "49": {
+          "rect": {
+            "x": 73,
+            "y": 99,
+            "width": 51,
+            "height": 96
+          },
+          "xOffset": 0,
+          "yOffset": 3,
+          "xAdvance": 31
+        },
+        "50": {
+          "rect": {
+            "x": 73,
+            "y": 0,
+            "width": 72,
+            "height": 98
+          },
+          "xOffset": 0,
+          "yOffset": 2,
+          "xAdvance": 52
+        },
+        "51": {
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 72,
+            "height": 98
+          },
+          "xOffset": 0,
+          "yOffset": 2,
+          "xAdvance": 52
+        }
+      },
+      "kerningDict": {}
+    },
+    "fontSize": 32,
+    "textureUuid": "5c5d36a7-181f-436b-b60e-90d0c3dec737"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "client",
+  "uuid": "0f88b77f-c043-456d-9bab-246ee07b8b94",
+  "creator": {
+    "version": "3.8.7",
+    "registry": {
+      "remote": {}
+    },
+    "dependencies": {}
+  }
+}
