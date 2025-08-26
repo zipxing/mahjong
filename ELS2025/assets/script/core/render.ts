@@ -80,47 +80,48 @@ export class ElsRender extends nge.Render {
             var gameAreaBaseX = 216; // 游戏区域起始X
             var gameAreaBaseY = 213; // 游戏区域起始Y
             
-            // 直接用最原始可见的设置！
-            customShadow.setPosition(360, 640, 0); // 屏幕中央，绝对可见
-            customShadow.setScale(3, 3, 1); // 3倍大，肯定能看到
+            // 计算方块的最终落地位置（虚影应该显示在这里）
+            var shadowY_target = cy;
+            // 向下寻找最终落地位置
+            while (shadowY_target < els.ZONG - 1) {
+                // 检查下一行是否可以放置方块
+                var canMove = true;
+                // 这里应该检查当前方块形状在下一行的位置是否与现有方块冲突
+                // 为了简化，我们先使用一个基本的计算
+                if (dat[(shadowY_target + 1) * els.GRIDW + cx + 2] != 0) {
+                    break; // 遇到障碍物，停止下降
+                }
+                shadowY_target++;
+            }
+            
+            // 根据落地位置计算虚影显示位置
+            var shadowX = gameAreaBaseX + cx * bs;
+            var shadowY = gameAreaBaseY + (els.ZONG - shadowY_target - 1) * bs;
+            
+            customShadow.setPosition(shadowX, shadowY, 0);
+            customShadow.setScale(1, 1, 1);
             customShadow.active = true;
             
-            // 强制设置所有组件
+            // 设置虚影组件
             const shadowSprite = customShadow.getComponent(Sprite);
             const shadowOpacity = customShadow.getComponent(UIOpacity);
+            const shadowTransform = customShadow.getComponent(UITransform);
             
             if (shadowSprite) {
-                shadowSprite.spriteFrame = g.blockimgs[cb + 11]; // 虚影图片
+                shadowSprite.spriteFrame = g.blockimgs[cb + 11];
                 shadowSprite.enabled = true;
             }
             
             if (shadowOpacity) {
-                shadowOpacity.opacity = 255; // 完全不透明
+                shadowOpacity.opacity = 80; // 更透明的虚影效果
             }
             
-            // 修复旋转问题：确保锚点正确
-            const shadowTransform = customShadow.getComponent(UITransform);
             if (shadowTransform) {
-                shadowTransform.setAnchorPoint(0.5, 0.5); // 设置锚点为中心
+                shadowTransform.setAnchorPoint(0.5, 0.5);
             }
             
-            // 先记录世界坐标
-            console.log("=== 旋转前的状态 ===");
-            console.log("虚影位置:", customShadow.position);
-            console.log("虚影旋转:", customShadow.rotation);
-            console.log("锚点:", shadowTransform ? shadowTransform.anchorPoint : "无");
-            
-            // 安全的旋转设置：使用eulerAngles属性（负号修正旋转方向）
+            // 设置旋转（与当前方块同步）
             customShadow.eulerAngles = new Vec3(0, 0, -90 * cz);
-            
-            console.log("=== 旋转后的状态 ===");
-            console.log("设置旋转角度:", 90 * cz, "度, cz值:", cz);
-            console.log("虚影位置:", customShadow.position);
-            console.log("虚影eulerAngles:", customShadow.eulerAngles);
-            
-            // 强制激活
-            customShadow.active = false;
-            customShadow.active = true;
         }
     }
     drawHoldNext() {
