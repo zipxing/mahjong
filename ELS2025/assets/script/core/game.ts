@@ -821,11 +821,9 @@ export class ElsGame extends nge.Game {
                     
                     // 检查方块节点是否存在且有效
                     if (!c || !c.isValid) {
-                        console.warn("Block node missing, recreating blocks...");
                         _main.init(); // 重新初始化方块
                         c = _main.blocks[n][i][j]; // 重新获取
                         if (!c) {
-                            console.error("Failed to recreate block node");
                             continue;
                         }
                     }

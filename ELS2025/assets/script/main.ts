@@ -190,11 +190,6 @@ export class Main extends Component {
                         var c: Node = instantiate(this.prefabblock);
                         if (!c) continue;
                         
-                        // 调试：检查预制体的初始状态
-                        if (n === 0 && i === 0 && j === 0) {
-                            console.log(`Prefab initial state: hasSprite=${!!c.getComponent('Sprite')}, hasUIOpacity=${!!c.getComponent('UIOpacity')}, spriteFrame=${!!c.getComponent('Sprite')?.spriteFrame}`);
-                        }
-                        
                         this.blocks[n][i][j] = c;
                         var scale = n == 0 ? 6.6 / els.HENG : 2.4 / els.HENG;
                         var bsize = 72 * scale + 2;
@@ -504,15 +499,11 @@ export class Main extends Component {
         let sprite = c.getComponent(Sprite);
         if (!sprite) {
             sprite = c.addComponent(Sprite);
-            console.log(`Added Sprite component to block node`);
         }
         
         // 安全检查blockimgs数组
         if (this.blockimgs && this.blockimgs[cmap[idx]]) {
             sprite.spriteFrame = this.blockimgs[cmap[idx]];
-            console.log(`Set spriteFrame for idx=${idx}, opacity=${op}`);
-        } else {
-            console.warn(`Missing sprite frame for index ${idx}, mapped to ${cmap[idx]}, blockimgs.length=${this.blockimgs?.length || 'null'}`);
         }
     }
 
