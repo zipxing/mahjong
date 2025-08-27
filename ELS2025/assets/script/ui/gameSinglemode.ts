@@ -11,6 +11,7 @@ import {
     tween,
     UIOpacity,
     Vec2,
+    Vec3,
 } from "cc";
 import { els } from "../core/els";
 import { tywx, WXUserInfo } from "../CommonFrame/GlobalInit";
@@ -69,10 +70,41 @@ export class GameSinglemode extends Component {
         this.model = this.game.model;
     }
 
+    // updateWinLine() {
+    //     let tmp_model = UIManager.game.model;
+    //     this.winline.active = true;
+    //     this.winline.opacity(150);
+    //     var ltl = 2;
+    //     var strContent = "";
+    //     var pos_y = -421;
+    //     var pos_x = 103;
+    //     if (tmp_model.currentStage <= 20 && tmp_model.currentStage >= 0) {
+    //         ltl = 6;
+    //     } else if (tmp_model.currentStage <= 50 && tmp_model.currentStage > 20) {
+    //         ltl = 4;
+    //     } else if (tmp_model.currentStage > 50) {
+    //         ltl = 2;
+    //     }
+    //     strContent = `消到${ltl}行以下过关`;
+    //     pos_y = ltl * 50 + pos_y;
+    //     this.winline.position = new Vec2(pos_x, pos_y);
+    //     let labelContent = this.winline.getChildByName("label_win").getComponent(Label);
+    //     labelContent.string = strContent;
+    // }
+
     updateWinLine() {
         let tmp_model = UIManager.game.model;
+        if (!this.winline) {
+            console.warn("winline node is not assigned!");
+            return;
+        }
         this.winline.active = true;
-        this.winline.opacity(150);
+        
+        // 设置透明度
+        const uiOpacity = this.winline.getComponent(UIOpacity);
+        if (uiOpacity) {
+            uiOpacity.opacity = 100;
+        }
         var ltl = 2;
         var strContent = "";
         var pos_y = -421;
@@ -86,9 +118,18 @@ export class GameSinglemode extends Component {
         }
         strContent = `消到${ltl}行以下过关`;
         pos_y = ltl * 50 + pos_y;
-        this.winline.position = new Vec2(pos_x, pos_y);
-        let labelContent = this.winline.getChildByName("label_win").getComponent(Label);
-        labelContent.string = strContent;
+        
+        // 设置正确的位置，保持较高的Z值以确保显示在最前面
+        this.winline.position = new Vec3(pos_x, pos_y, 0);
+        
+        // 尝试找到标签节点，可能是 label_win 或 label_line
+        let labelNode = this.winline.getChildByName("label_win") || this.winline.getChildByName("label_line");
+        if (labelNode) {
+            let labelContent = labelNode.getComponent(Label);
+            if (labelContent) {
+                labelContent.string = strContent;
+            } 
+        } 
     }
 
     showMe() {
