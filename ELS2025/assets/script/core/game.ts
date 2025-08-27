@@ -23,8 +23,7 @@ export class ElsGame extends nge.Game {
     requestTimes: number;
     gameNode: any;
     mrender: any[];
-    cipherIndex: any;
-    cipherData: any;
+
     _time: any;
     countTimerObj: number;
     randomKey: any;
@@ -260,44 +259,6 @@ export class ElsGame extends nge.Game {
             switch (this.model.mconf.mode) {
                 case els.ELS_MODE_SINGLE:
                     if (this.model.pause) return;
-                    var whisper_win = this.model.mconf.isWhisper && this.model.mgrid[0].mstat.clear_lines >= 1;
-                    if (whisper_win) {
-                        console.log("whisper single mode success!!!");
-                        //粒子 烟花
-                        var _gameCtrl = this.gameNode.getComponent(Main);
-                        var particleSystem = _gameCtrl.yanhua
-                            .getChildByName("particlesystem")
-                            .getComponent(ParticleSystem2D);
-                        // _gameCtrl.yanhua.active = true;
-                        if (particleSystem && this.model.begin_win_partical == -1) {
-                            this.model.begin_win_partical = 0;
-                            _gameCtrl.yanhua.active = true;
-                            particleSystem.resetSystem();
-
-                            var self = this;
-                            setTimeout(function () {
-                                _gameCtrl.yanhua.active = false;
-                                self.updateLocQuery();
-                                self.model.begin_win_partical = -1;
-                                // self.model.playMusic(els.ELS_VOICE.WIN_MUSIC, false);
-                                self.model.currentStage += 1;
-                                self.updateStage(self.model.currentStage);
-                                if (self.cipherIndex >= self.cipherData.length) {
-                                    self.model.setGameStatus(els.ELS_GAME_STATE.RESULT_WIN); //此局胜利
-                                    self.scheduleUpdate_Manual(0);
-                                    BiLog.clickStat(clickStatEventType.clickStatEventTypePassAllQQHStage, [
-                                        self.model.currentStage,
-                                    ]);
-                                } else {
-                                    self.nextStage();
-                                    BiLog.clickStat(clickStatEventType.clickStatEventTypePassQQHStage, [
-                                        self.model.currentStage,
-                                    ]);
-                                }
-                            }, 1200);
-                        }
-                        return;
-                    }
 
                     var ltl = 2;
                     if (this.model.currentStage <= 20 && this.model.currentStage >= 0) ltl = 6;
@@ -334,9 +295,6 @@ export class ElsGame extends nge.Game {
                         return;
                     }
                     var mstep = els.ELSBMP_NANDU[this.model.currentStage][1];
-                    if (this.model.mconf.isWhisper) {
-                        mstep = 50;
-                    }
                     if (this.model.mgrid[0].mcore.block_index >= mstep + this.model.add_step) {
                         if (this.model.mgrid[0].mcore.fullrows.length == 0) {
                             this.model.playMusic(els.ELS_VOICE.LOSE_MUSIC, false);
@@ -515,9 +473,6 @@ export class ElsGame extends nge.Game {
         }
         if (this.model.mconf.mode == els.ELS_MODE_SINGLE) {
             var mstep = els.ELSBMP_NANDU[this.model.currentStage][1];
-            if (this.model.mconf.isWhisper) {
-                mstep = 50;
-            }
             //TODO: 剩余步数 小于等于此时显示救济按钮
             let remaining_setp = 7;
             if (this.model.mgrid[0].mcore.block_index >= mstep + this.model.add_step - remaining_setp) {
@@ -579,9 +534,6 @@ export class ElsGame extends nge.Game {
             if (this.model.mconf.mode == els.ELS_MODE_SINGLE) {
                 this.gameNode.getComponent(Main).lbl_time.active = true;
                 var mstep = els.ELSBMP_NANDU[this.model.currentStage][1];
-                if (this.model.mconf.isWhisper) {
-                    mstep = 50;
-                }
                 this.gameNode.getComponent(Main).lbl_time.getComponent(Label).string =
                     mstep + this.model.add_step - this.model.mgrid[0].mcore.block_index + "";
             }
@@ -886,7 +838,6 @@ export class ElsGame extends nge.Game {
         }
     }
     _backToHomePage() {
-        this.model.mconf.isWhisper = false;
         els.HENG = 10;
         var _game = UIManager.getUI(els.ELS_GAME_LAYER.GAME_SINGLE).node.getComponent(GameSinglemode);
         _game.node.getChildByName("win_tips").active = false;
@@ -937,44 +888,7 @@ export class ElsGame extends nge.Game {
         StarControl.clearNodes();
         this.gameNode.getComponent(Main).showBeyondNode("ELS_PKSTAR");
     }
-    // 密语
-    btn_secret_language(cipherData, curIndex, randomKey) {
-        console.log("btn_secret_language");
-        this.cipherData = cipherData;
-        this.cipherIndex = curIndex;
-        this.randomKey = randomKey;
-        els.HENG = 11;
-        this.updateBlock();
 
-        this.model.currentStage = parseInt(this.loadItem("ELS_CURRENT_STAGE2", 0));
-        this.model.mconf.mode = els.ELS_MODE_SINGLE;
-        this.initGame(this.gameNode, this.model.currentStage, parseInt((Math.random() * 10000).toString()));
-        this.model.mconf.canRun = false;
-        this.model.mconf.isWhisper = true;
-        this.model.setGameStatus(els.ELS_GAME_STATE.PLAYING);
-        this.model.allowDoPopAction = true;
-        this.model.playMusic(els.ELS_VOICE.READYGO_MUSIC, false);
-        this.model.playMusic(els.ELS_VOICE.BG_MUSIC2, true, 0.4);
-        StarControl.clearNodes();
-        this.model.mgrid[0].setBmp(this.cipherData[this.cipherIndex]);
-
-        UIManager.hideAllUI();
-        UIManager.showUI(els.ELS_GAME_LAYER.GAME_SINGLE);
-
-        var _game = UIManager.getUI(els.ELS_GAME_LAYER.GAME_SINGLE).node.getComponent(GameSinglemode);
-        _game.node.getChildByName("win_tips").active = true;
-        for (var i = 0; i < _game.masks.length; i++) {
-            if (i >= curIndex && i < cipherData.length) {
-                _game.masks[i].active = true;
-            } else {
-                _game.masks[i].active = false;
-            }
-        }
-        _game.showWisperStart(this.cipherIndex);
-
-        var gleNode = UIManager.getUI(els.ELS_GAME_LAYER.GAME_SINGLE);
-        gleNode.node.getChildByName("sl_bg").active = true;
-    }
     //开始经典模式
     startClassicGame() {
         this.model.currentStage = parseInt(this.loadItem("ELS_CURRENT_STAGE2", 0));
@@ -1011,16 +925,12 @@ export class ElsGame extends nge.Game {
         } else {
             this.initGame(this.gameNode, this.model.currentStage, parseInt((Math.random() * 10000).toString()));
             this.model.setGameStatus(els.ELS_GAME_STATE.PLAYING);
-            if (this.model.mconf.isWhisper) {
-                this.model.mgrid[0].setBmp(this.cipherData[this.cipherIndex]);
-                console.log("btn_reStart_fun cipherData");
-            }
         }
         this.model.allowDoPopAction = true;
         this.scheduleUpdate_Manual(0);
     }
     updateLocQuery() {
-        this.cipherIndex = this.cipherIndex + 1;
+
         var _query_key = "SECRETLANGUAGEDATA";
         var querys = JSON.parse(this.loadItem(_query_key, ""));
         var inLoc = false;
@@ -1028,7 +938,7 @@ export class ElsGame extends nge.Game {
         for (var i = 0; i < querys.length; i++) {
             var _tq = querys[i];
             if (_tq["randomKey"] == this.randomKey) {
-                _tq["curIndex"] = this.cipherIndex;
+                _tq["curIndex"] = 0;
             }
             new_querys.push(_tq);
         }
@@ -1046,19 +956,8 @@ export class ElsGame extends nge.Game {
             ]);
             this.initGame(this.gameNode, -1, parseInt((Math.random() * 10000).toString()));
         } else {
-            if (this.model.mconf.isWhisper) {
-                if (this.cipherIndex >= this.cipherData.length) {
-                    return;
-                }
-            }
             this.initGame(this.gameNode, this.model.currentStage, parseInt((Math.random() * 10000).toString()));
             this.model.setGameStatus(els.ELS_GAME_STATE.PLAYING);
-            if (this.model.mconf.isWhisper) {
-                this.model.mgrid[0].setBmp(this.cipherData[this.cipherIndex]);
-                this.show_mask();
-                var _game = UIManager.getUI(els.ELS_GAME_LAYER.GAME_SINGLE).node.getComponent(GameSinglemode);
-                _game.showWisperStart(this.cipherIndex);
-            }
         }
         //去掉烟花效果
         var _gameCtrl = this.gameNode.getComponent(Main);
@@ -1073,7 +972,9 @@ export class ElsGame extends nge.Game {
         if (this.model.getGameStatus() == els.ELS_GAME_STATE.PLAYING) {
             this.model.setGameStatus(els.ELS_GAME_STATE.SHOW_MASK);
             var _game = UIManager.getUI(els.ELS_GAME_LAYER.GAME_SINGLE).node.getComponent(GameSinglemode);
-            _game.game_mask.active = true;
+            if (_game && _game.game_mask) {
+                _game.game_mask.active = true;
+            }
             this.stopTimerCountdown();
             this.model.allowDoPopAction = true;
             this.scheduleUpdate_Manual(0);
@@ -1083,7 +984,9 @@ export class ElsGame extends nge.Game {
         if (this.model.getGameStatus() == els.ELS_GAME_STATE.SHOW_MASK) {
             this.model.mconf.canRun = true;
             var _game = UIManager.getUI(els.ELS_GAME_LAYER.GAME_SINGLE).node.getComponent(GameSinglemode);
-            //_game.game_mask.active = false;
+            if (_game && _game.game_mask) {
+                _game.game_mask.active = false;
+            }
             this.continueGame();
         }
     }

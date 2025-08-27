@@ -7,12 +7,10 @@ import { els } from "./els";
 
 export class ElsConfig {
     isreplay: boolean;
-    isWhisper: boolean;
     canRun: boolean;
     mode: any;
     constructor() {
         this.isreplay = false;
-        this.isWhisper = false;
         this.canRun = true;
         this.mode = els.ELS_MODE_SINGLE;
         //this.mode=els.ELS_MODE_AI;

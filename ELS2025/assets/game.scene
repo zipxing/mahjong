@@ -17190,13 +17190,13 @@
     "_id": "6e+QgezehAJrApzfsX1Fxr"
   },
   {
-    "__type__": "d5153oaFAhBdrtbAuQLqfHg",
+    "__type__": "cc.Component",
     "_name": "",
     "_objFlags": 0,
     "node": {
       "__id__": 435
     },
-    "_enabled": true,
+    "_enabled": false,
     "__prefab": null,
     "win_content": {
       "__id__": 464

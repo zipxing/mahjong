@@ -99,15 +99,7 @@ export class ShareInterface {
             shareSchemeId: _list[randomIndex].shareSchemeId,
         };
         let isForceShare2Group = true;
-        //TODO: 类型判断为悄悄话制作,则不用此后端图片 用生成的对应文字的图
-        if (_para.type === "game_qqh_make") {
-            if (!_para.imageUrl) {
-                console.log("whisper type:: _imageUrl don`t exist!!!");
-                return;
-            }
-            config.imageUrl = _para.imageUrl;
-            isForceShare2Group = false;
-        }
+
         this.share(
             config.title,
             config.imageUrl,

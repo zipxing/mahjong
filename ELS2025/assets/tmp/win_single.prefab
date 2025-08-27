@@ -4801,13 +4801,13 @@
     "fileId": "5drTaiAZVCb5xWOD0jIP8D"
   },
   {
-    "__type__": "d5153oaFAhBdrtbAuQLqfHg",
+    "__type__": "cc.Component",
     "_name": "",
     "_objFlags": 0,
     "node": {
       "__id__": 1
     },
-    "_enabled": true,
+    "_enabled": false,
     "win_content": null,
     "win_content_icon": null,
     "win_whisper_image": null,

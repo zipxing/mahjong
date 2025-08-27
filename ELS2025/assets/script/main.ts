@@ -171,21 +171,42 @@ export class Main extends Component {
         this.combo = [];
         this.combo[0] = this.node.getChildByName("combo0");
         this.combo[1] = this.node.getChildByName("combo1");
-        this.node.getChildByName("back").removeAllChildren();
+        // 安全地清理和重建节点
+        const backNode = this.node.getChildByName("back");
+        if (backNode) {
+            try {
+                backNode.removeAllChildren();
+            } catch (e) {
+                console.warn("Error removing children:", e);
+            }
+        }
+        
         this.blocks = [[], []];
         for (var n = 0; n < 2; n++) {
             for (var i = 0, il = els.ZONG; i < il; i++) {
                 this.blocks[n][i] = new Array(els.HENG + 1);
                 for (var j = 0, jl = els.HENG + 1; j < jl; j++) {
-                    var c: Node = instantiate(this.prefabblock);
-                    this.blocks[n][i][j] = c;
-                    var scale = n == 0 ? 6.6 / els.HENG : 2.4 / els.HENG;
-                    var bsize = 72 * scale + 2;
-                    c.setScale(scale, scale, 1);
-                    this.setBlkColor(c, 0, 8);
-                    if (n == 0) c.setPosition(new Vec3(216 + j * bsize, 215 + i * bsize, 0)); //自己202
-                    if (n == 1) c.setPosition(new Vec3(14 + j * bsize, 810 + i * bsize, 0)); //AI  796
-                    c.parent = this.node.getChildByName("back");
+                    try {
+                        var c: Node = instantiate(this.prefabblock);
+                        if (!c) continue;
+                        
+                        this.blocks[n][i][j] = c;
+                        var scale = n == 0 ? 6.6 / els.HENG : 2.4 / els.HENG;
+                        var bsize = 72 * scale + 2;
+                        c.setScale(scale, scale, 1);
+                        this.setBlkColor(c, 0, 8);
+                        if (n == 0) c.setPosition(new Vec3(216 + j * bsize, 215 + i * bsize, 0)); //自己202
+                        if (n == 1) c.setPosition(new Vec3(14 + j * bsize, 810 + i * bsize, 0)); //AI  796
+                        
+                        // 确保UITransform组件正确初始化
+                        if (!c.getComponent(UITransform)) {
+                            c.addComponent(UITransform);
+                        }
+                        
+                        c.parent = backNode;
+                    } catch (e) {
+                        console.warn("Error creating block node:", e);
+                    }
                 }
             }
         }
@@ -195,17 +216,37 @@ export class Main extends Component {
             for (var i = 0; i < 4; i++) {
                 this.holdnext[n][i] = new Array(4);
                 for (var j = 0; j < 4; j++) {
-                    var c: Node = instantiate(this.prefabblock);
-                    this.holdnext[n][i][j] = c;
-                    c.setScale(0.18, 0.18, 1);
-                    var bsize = 72 * 0.18 + 2;
-                    this.setBlkColor(c, 50, 10);
-                    c.setPosition(new Vec3(72 + j * bsize, 170 + by[n] - i * bsize, 0));
-                    c.parent = this.node.getChildByName("back");
+                    try {
+                        var c: Node = instantiate(this.prefabblock);
+                        if (!c) continue;
+                        
+                        this.holdnext[n][i][j] = c;
+                        c.setScale(0.18, 0.18, 1);
+                        var bsize = 72 * 0.18 + 2;
+                        this.setBlkColor(c, 50, 10);
+                        c.setPosition(new Vec3(72 + j * bsize, 170 + by[n] - i * bsize, 0));
+                        
+                        // 确保UITransform组件正确初始化
+                        if (!c.getComponent(UITransform)) {
+                            c.addComponent(UITransform);
+                        }
+                        
+                        c.parent = backNode;
+                    } catch (e) {
+                        console.warn("Error creating holdnext node:", e);
+                    }
                 }
             }
         }
-        this.node.getChildByName("anim").removeAllChildren();
+        // 安全地清理anim节点
+        const animNode = this.node.getChildByName("anim");
+        if (animNode) {
+            try {
+                animNode.removeAllChildren();
+            } catch (e) {
+                console.warn("Error removing anim children:", e);
+            }
+        }
         this.attani = [
             [[], [], [], [], []],
             [[], [], [], [], []],
@@ -216,13 +257,29 @@ export class Main extends Component {
             for (var i = 0; i < 5; i++) {
                 this.attani[n][i] = new Array(6);
                 for (var j = 0; j < 6; j++) {
-                    var c: Node = j == 0 ? instantiate(this.prefabattack0) : instantiate(this.prefabattack1);
-                    this.attani[n][i][j] = c;
-                    let scale = scaletail[j];
-                    c.setScale(scale, scale, 1);
-                    c.opacity(op[j]);
-                    c.getComponent(Sprite).enabled = false;
-                    c.parent = this.node.getChildByName("anim");
+                    try {
+                        var c: Node = j == 0 ? instantiate(this.prefabattack0) : instantiate(this.prefabattack1);
+                        if (!c) continue;
+                        
+                        this.attani[n][i][j] = c;
+                        let scale = scaletail[j];
+                        c.setScale(scale, scale, 1);
+                        c.opacity(op[j]);
+                        
+                        const sprite = c.getComponent(Sprite);
+                        if (sprite) {
+                            sprite.enabled = false;
+                        }
+                        
+                        // 确保UITransform组件正确初始化
+                        if (!c.getComponent(UITransform)) {
+                            c.addComponent(UITransform);
+                        }
+                        
+                        c.parent = animNode;
+                    } catch (e) {
+                        console.warn("Error creating attani node:", e);
+                    }
                 }
             }
         }

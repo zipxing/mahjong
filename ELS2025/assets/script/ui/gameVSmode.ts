@@ -7,6 +7,7 @@ import { els } from "../core/els";
 import { UIManager } from "./ui_manager";
 import { ShareInterface } from "../CommonFrame/ShareInterface";
 import { StarControl } from "./star_control";
+import { Main } from "../main";
 const { ccclass, property } = _decorator;
 
 @ccclass("GameVSmode")
@@ -32,7 +33,7 @@ export class GameVSmode extends Component {
     model: any;
 
     onLoad() {
-        this.gameview = this.gameNode.getComponent("game");
+        this.gameview = this.gameNode.getComponent(Main);
         this.lose = this.node.getChildByName("lose");
         this.win = this.node.getChildByName("win");
     }

@@ -115,10 +115,8 @@ export class ElsModel extends nge.Model {
         //记录上一关卡的mode
         if (this.mconf && this.mconf.mode != undefined) {
             var _mode = this.mconf.mode;
-            var _isWhisper = this.mconf.isWhisper;
             this.mconf = new ElsConfig();
             this.mconf.mode = _mode;
-            this.mconf.isWhisper = _isWhisper;
         } else {
             this.mconf = new ElsConfig();
         }

@@ -45,14 +45,7 @@ export class HomePage extends Component {
     public nodeAdapterGame = null;
     @property(Prefab)
     public label_content = null;
-    @property(Node)
-    public whisper_tips = null;
-    @property(Label)
-    public whisper_tips_content = null;
-    @property(Sprite)
-    public whisper_tips_icon = null;
-    @property(Node)
-    public whisper_win_single = null;
+
     menu: Node;
     make_share: Node;
     submit_btn: any;
@@ -71,8 +64,6 @@ export class HomePage extends Component {
     _query: any;
 
     onLoad() {
-        NotificationCenter.listen(EventType.GET_SECRET_LANGUAGE_IMAGE_SUCCESS, this.get_image_success, this);
-        NotificationCenter.listen(EventType.SECRET_LANGUAGE_TO_GAME, this.secret_language_to_game, this);
         this.menu = this.node.getChildByName("menu");
         this.make_share = this.node.getChildByName("make_share");
         this.submit_btn = this.make_share.getChildByName("submit_btn");
@@ -95,15 +86,11 @@ export class HomePage extends Component {
         this.ciphertext.on("editing-did-began", this.editingDidBegan_ciphertext, this);
         this.ciphertext.on("editing-did-ended", this.editingDidEnded_ciphertext, this);
         this.text_tip_p = this.make_share.getChildByName("text_tip_plaint");
-        this.text_tip_w = this.make_share.getChildByName("text_tip_whisper");
-        this.whisper_tips.getChildByName("tips_btn").on("click", this.whisper_btn_click, this);
-        this.whisper_tips.getChildByName("back_btn").on("click", this.whisper_back_btn_click, this);
     }
 
     start() {
         this.game = UIManager.game;
         this.model = this.game.model;
-        this.check_secret_language_data();
         this.playLogoAnimationRandom();
         this.model.checkPlayMusic();
         this.refreshSoundBtnState();
@@ -144,14 +131,11 @@ export class HomePage extends Component {
         console.log("homepage showMe");
         this.nodeAdapterBgHome.active = true;
         this.nodeAdapterGame.active = false;
-        this.whisper_win_single.active = false;
         this.refreshStar();
     }
 
     onEnable() {
-        this.whisper_tips.active = false;
         this.text_tip_p.active = true;
-        this.text_tip_w.active = false;
         this.plaintext.getComponent(EditBox).string = "";
         this.ciphertext.getComponent(EditBox).string = "";
     }
@@ -295,161 +279,7 @@ export class HomePage extends Component {
             );
         }
     }
-    SECRETLANGUAGEDATA: any;
-    secret_language_to_game(ret: any) {
-        this.SECRETLANGUAGEDATA = ret;
-        this.check_secret_language_data();
-    }
 
-    check_secret_language_data() {
-        var query = this.SECRETLANGUAGEDATA;
-        if (!query) {
-            return;
-        }
-        query["curIndex"] = 0;
-        var _query_key = "SECRETLANGUAGEDATA";
-        var querys_str = this.game.loadItem(_query_key, "");
-        var inLoc = false;
-        var querys;
-        if (querys_str) {
-            querys = JSON.parse(querys_str);
-            for (var i = 0; i < querys.length; i++) {
-                var _tq = querys[i];
-                if (_tq["randomKey"] == query["randomKey"]) {
-                    query = _tq;
-                    inLoc = true;
-                }
-            }
-        }
-        if (!querys) {
-            querys = new Array();
-        }
-        if (!inLoc) {
-            querys.push(query);
-            this.game.saveItem(_query_key, JSON.stringify(querys), true);
-        }
-        this._query = query;
-        this.SECRETLANGUAGEDATA = null;
-        console.log(JSON.stringify(this.SECRETLANGUAGEDATA));
-        var plaintext = query.plaintext;
-        var ciphertext = query.ciphertext;
-        SecretLanguage.get_wxtetris_makeimage(plaintext, ciphertext, "get");
-    }
-
-    handle_whisper_data(ret: any) {
-        this.show_share_loading.active = false;
-        var gleNode = UIManager.getUI(els.ELS_GAME_LAYER.GAME_SINGLE);
-        gleNode.node.getChildByName("sl_bg").active = true;
-        var _query = this._query;
-        this.game.win_content = ret.plainText + "\n" + ret.cipherText;
-        this.game.win_contetn_avatarUrl = this._query.avatarUrl;
-        this._query = null;
-        var plainData = ret["plainData"];
-        var cipherData = ret["cipherData"];
-        var _s = ret.plainText;
-        gleNode.node
-            .getChildByName("sl_bg")
-            .getChildByName("sl_content")
-            .getChildByName("data_p")
-            .getComponent(Label).string = _s;
-        var _s0, _s1, _s2, _ss, _st;
-        if (ret.cipherText.length <= 3) {
-            _s0 = ret.cipherText;
-            if (_s0.length == 1) _s = _s0;
-            if (_s0.length == 2) _s = _s0[0] + "  " + _s0[1];
-            if (_s0.length == 3) _s = _s0[0] + "  " + _s0[1] + "  " + _s0[2];
-        } else {
-            _s1 = ret.cipherText.slice(0, 3);
-            if (_s1.length == 1) _ss = _s1;
-            if (_s1.length == 2) _ss = _s1[0] + "  " + _s1[1];
-            if (_s1.length == 3) _ss = _s1[0] + "  " + _s1[1] + "  " + _s1[2];
-            _s2 = ret.cipherText.slice(3);
-            if (_s2.length == 1) _st = _s2;
-            if (_s2.length == 2) _st = _s2[0] + "  " + _s2[1];
-            if (_s2.length == 3) _st = _s2[0] + "  " + _s2[1] + "  " + _s2[2];
-            _s = _ss + "\n" + _st;
-        }
-        gleNode.node
-            .getChildByName("sl_bg")
-            .getChildByName("sl_content")
-            .getChildByName("data")
-            .getComponent(Label).string = _s;
-        var that = this;
-        this.share_tips_img.active = false;
-        if (!_query["avatarUrl"]) {
-            this.share_tips.getComponent(Label).string = "" + _query["inviteName"] + "的悄悄话";
-        } else {
-            this.share_tips.getComponent(Label).string = "           " + _query["inviteName"] + "的悄悄话";
-            assetManager.loadRemote(_query["avatarUrl"] + "?aaa=aa.png", function (err, imageAsset: ImageAsset) {
-                if (!err) {
-                    that.share_tips_img.active = true;
-                    let spriteFrame = new SpriteFrame();
-                    let texture = new Texture2D();
-                    texture.image = imageAsset;
-                    spriteFrame.texture = texture;
-                    that.share_tips_img.getComponent(Sprite).spriteFrame = spriteFrame;
-                } else {
-                    that.share_tips.getComponent(Label).string = "" + _query["inviteName"] + "的悄悄话";
-                }
-            });
-        }
-        this.game.btn_secret_language(cipherData, _query.curIndex, _query["randomKey"]);
-    }
-
-    get_image_success(ret: any) {
-        this.show_data = ret;
-        if (ret.type == "get") {
-            if (ret.cipherData.length <= this._query.curIndex) {
-                if (WXUserInfo) {
-                    this.whisper_win_single.getComponent("whisper_win_single").showWithData({
-                        avatarUrl: this._query["avatarUrl"],
-                        user_heard_url: WXUserInfo.avatarUrl,
-                        data: ret.plainText + "\n" + ret.cipherText,
-                    });
-                } else {
-                    let self = this;
-                    OpenDataContextUtil.getUserInfo(
-                        function (ret) {
-                            console.log("ret-->" + ret);
-                            let userInfo = ret[0];
-                            WXUserInfo.nickName = userInfo.nickName;
-                            WXUserInfo.avatarUrl = userInfo.avatarUrl;
-                            self.whisper_win_single.getComponent("whisper_win_single").showWithData({
-                                avatarUrl: self._query["avatarUrl"],
-                                user_heard_url: WXUserInfo.avatarUrl,
-                                data: self.show_data.plainText + "\n" + self.show_data.cipherText,
-                            });
-                        },
-                        function (ret) {
-                            console.log(ret);
-                        }
-                    );
-                }
-                return;
-            } else {
-                this.whisper_tips_content.getComponent(Label).string = this._query["inviteName"] + "的悄悄话";
-                var self = this;
-                assetManager.loadRemote(this._query["avatarUrl"] + "?aaa=aa.png", (err, imageAsset: ImageAsset) => {
-                    if (!err) {
-                        let spriteFrame = new SpriteFrame();
-                        let texture = new Texture2D();
-                        texture.image = imageAsset;
-                        spriteFrame.texture = texture;
-                        self.whisper_tips_icon.active = true;
-                        self.whisper_tips_icon.getComponent(Sprite).spriteFrame = spriteFrame;
-                    }
-                });
-                this.whisper_tips.active = true;
-            }
-            return;
-        }
-        var _s = ret.plainText;
-        this.show_share.getChildByName("sl_content").getChildByName("data1").getComponent(Label).string = _s;
-        var _s =
-            ret.cipherText.length <= 3 ? ret.cipherText : ret.cipherText.slice(0, 3) + "\n" + ret.cipherText.slice(3);
-        this.show_share.getChildByName("sl_content").getChildByName("data").getComponent(Label).string = _s;
-        this._drawWithData(ret, this.show_share.getChildByName("sl_content"));
-    }
 
     back_btn_1_click() {
         this.make_share.active = false;
@@ -470,14 +300,7 @@ export class HomePage extends Component {
         this.show_share.active = false;
     }
 
-    whisper_btn_click() {
-        this.whisper_tips.active = false;
-        this.handle_whisper_data(this.show_data);
-    }
 
-    whisper_back_btn_click() {
-        this.whisper_tips.active = false;
-    }
 
     _drawWithData(data: any, _node: any) {
         this.show_share.getChildByName("show_share_bg").removeAllChildren();

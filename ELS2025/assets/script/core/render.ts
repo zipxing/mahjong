@@ -52,27 +52,60 @@ export class ElsRender extends nge.Render {
         }
         //Render shadow... (新的虚影系统)
         if (this.index == 0) {
-            var cb = this.grid.mcore.cur_block;
-            var cx = this.grid.mcore.tdx;
-            var cy = this.grid.mcore.tdy;
-            var cz = this.grid.mcore.cur_z;
-            // 虚影系统
-            let customShadow = this.gnode.getChildByName("my_shadow");
-            if (!customShadow) {
-                // 创建虚影节点
-                customShadow = new Node("my_shadow");
-                const sprite = customShadow.addComponent(Sprite);
-                const transform = customShadow.addComponent(UITransform);
-                const opacity = customShadow.addComponent(UIOpacity);
+            var customShadow = null;
+            try {
+                var cb = this.grid.mcore.cur_block;
+                var cx = this.grid.mcore.tdx;
+                var cy = this.grid.mcore.tdy;
+                var cz = this.grid.mcore.cur_z;
                 
-                // 设置基本属性
-                transform.setContentSize(50, 50);
-                sprite.spriteFrame = g.blockimgs[0];
-                opacity.opacity = 100; // 半透明效果
+                // 安全检查游戏节点
+                if (!this.gnode || !this.gnode.isValid) {
+                    return;
+                }
                 
-                // 添加到游戏节点
-                customShadow.parent = this.gnode;
-                customShadow.active = true;
+                // 虚影系统
+                customShadow = this.gnode.getChildByName("my_shadow");
+                if (!customShadow || !customShadow.isValid) {
+                    // 清理可能存在的无效节点
+                    let oldShadow = this.gnode.getChildByName("my_shadow");
+                    if (oldShadow && !oldShadow.isValid) {
+                        try {
+                            oldShadow.removeFromParent();
+                        } catch (e) {
+                            console.warn("Failed to remove old shadow:", e);
+                        }
+                    }
+                    
+                    // 创建虚影节点
+                    try {
+                        customShadow = new Node("my_shadow");
+                        const sprite = customShadow.addComponent(Sprite);
+                        const transform = customShadow.addComponent(UITransform);
+                        const opacity = customShadow.addComponent(UIOpacity);
+                        
+                        // 设置基本属性
+                        if (transform) {
+                            transform.setContentSize(50, 50);
+                        }
+                        if (sprite && g.blockimgs && g.blockimgs[0]) {
+                            sprite.spriteFrame = g.blockimgs[0];
+                        }
+                        if (opacity) {
+                            opacity.opacity = 100; // 半透明效果
+                        }
+                        
+                        // 添加到游戏节点
+                        customShadow.parent = this.gnode;
+                        customShadow.active = true;
+                    } catch (e) {
+                        console.warn("Failed to create shadow node:", e);
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.warn("Error in shadow system initialization:", e);
+                return;
             }
             
             // 计算游戏区域内的正确位置
@@ -88,39 +121,52 @@ export class ElsRender extends nge.Render {
             var targetX = this.grid.mcore.tdx;
             var targetY = this.grid.mcore.tdy;
             
-            // 根据落地位置计算虚影显示位置
-            var shadowX = gameAreaBaseX + targetX * bs;
-            var shadowY = gameAreaBaseY + (els.ZONG - targetY - 2) * bs; // 向下移动一个单元格
-            
-            // 应用方块类型和旋转状态的位置微调
-            var offset = els.BLK_C_OFFSET[cb][cz];
-            shadowX += offset[0] * bs;
-            shadowY += offset[1] * bs;
-            
-            customShadow.setPosition(shadowX, shadowY, 0);
-            customShadow.setScale(1, 1, 1);
-            customShadow.active = true;
-            
-            // 设置虚影组件
-            const shadowSprite = customShadow.getComponent(Sprite);
-            const shadowOpacity = customShadow.getComponent(UIOpacity);
-            const shadowTransform = customShadow.getComponent(UITransform);
-            
-            if (shadowSprite) {
-                shadowSprite.spriteFrame = g.blockimgs[cb + 11];
-                shadowSprite.enabled = true;
+            try {
+                // 确保虚影节点仍然有效
+                if (customShadow && customShadow.isValid) {
+                    // 根据落地位置计算虚影显示位置
+                    var shadowX = gameAreaBaseX + targetX * bs;
+                    var shadowY = gameAreaBaseY + (els.ZONG - targetY - 2) * bs; // 向下移动一个单元格
+                    
+                    // 应用方块类型和旋转状态的位置微调
+                    if (els.BLK_C_OFFSET && els.BLK_C_OFFSET[cb] && els.BLK_C_OFFSET[cb][cz]) {
+                        var offset = els.BLK_C_OFFSET[cb][cz];
+                        shadowX += offset[0] * bs;
+                        shadowY += offset[1] * bs;
+                    }
+                    
+                    try {
+                        customShadow.setPosition(shadowX, shadowY, 0);
+                        customShadow.setScale(1, 1, 1);
+                        customShadow.active = true;
+                        
+                        // 设置虚影组件
+                        const shadowSprite = customShadow.getComponent(Sprite);
+                        const shadowOpacity = customShadow.getComponent(UIOpacity);
+                        const shadowTransform = customShadow.getComponent(UITransform);
+                        
+                        if (shadowSprite && g.blockimgs && g.blockimgs[cb + 11]) {
+                            shadowSprite.spriteFrame = g.blockimgs[cb + 11];
+                            shadowSprite.enabled = true;
+                        }
+                        
+                        if (shadowOpacity) {
+                            shadowOpacity.opacity = 80; // 更透明的虚影效果
+                        }
+                        
+                        if (shadowTransform) {
+                            shadowTransform.setAnchorPoint(0.5, 0.5);
+                        }
+                        
+                        // 设置旋转（与当前方块同步）
+                        customShadow.eulerAngles = new Vec3(0, 0, -90 * cz);
+                    } catch (e) {
+                        console.warn("Error updating shadow node:", e);
+                    }
+                }
+            } catch (e) {
+                console.warn("Error in shadow system update:", e);
             }
-            
-            if (shadowOpacity) {
-                shadowOpacity.opacity = 80; // 更透明的虚影效果
-            }
-            
-            if (shadowTransform) {
-                shadowTransform.setAnchorPoint(0.5, 0.5);
-            }
-            
-            // 设置旋转（与当前方块同步）
-            customShadow.eulerAngles = new Vec3(0, 0, -90 * cz);
         }
     }
     drawHoldNext() {
