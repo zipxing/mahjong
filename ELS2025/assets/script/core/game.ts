@@ -818,10 +818,22 @@ export class ElsGame extends nge.Game {
             for (var i = 0, il = els.ZONG; i < il; i++) {
                 for (var j = 0, jl = els.HENG; j < jl; j++) {
                     var c = _main.blocks[n][i][j];
+                    
+                    // 检查方块节点是否存在且有效
+                    if (!c || !c.isValid) {
+                        console.warn("Block node missing, recreating blocks...");
+                        _main.init(); // 重新初始化方块
+                        c = _main.blocks[n][i][j]; // 重新获取
+                        if (!c) {
+                            console.error("Failed to recreate block node");
+                            continue;
+                        }
+                    }
+                    
                     var scale = n == 0 ? 6.6 / els.HENG : 2.4 / els.HENG;
                     var bsize = 72 * scale + 2;
                     c.scale = scale;
-                    setBlkColor(c, 0, 8);
+                    setBlkColor(c, 0, 8); // 设置为透明，这是正确的，因为游戏开始时方块应该是空的
                     if (n == 0) c.position = new Vec2(216 + j * bsize, 215 + i * bsize); //重置时候的方块位置
                     if (n == 1) c.position = new Vec2(14 + j * bsize, 796 + i * bsize);
                 }
@@ -832,7 +844,9 @@ export class ElsGame extends nge.Game {
             for (var n = 0; n < 2; n++) {
                 for (var i = 0; i < els.ZONG; i++) {
                     var c = _main.blocks[n][i][10];
-                    setBlkColor(c, 0, 0);
+                    if (c && c.isValid) {
+                        setBlkColor(c, 0, 0);
+                    }
                 }
             }
         }
@@ -843,6 +857,13 @@ export class ElsGame extends nge.Game {
         _game.node.getChildByName("win_tips").active = false;
         this.updateBlock();
         this.model.setGameStatus(els.ELS_GAME_STATE.HOMEPAGE);
+        
+        // 确保重新初始化Main组件的blocks数组
+        var mainComponent = this.gameNode.getComponent(Main);
+        if (mainComponent) {
+            mainComponent.init();
+        }
+        
         this.initGame(this.gameNode, 0, parseInt((Math.random() * 10000).toString()));
         this.model.playMusic(els.ELS_VOICE.BG_MUSIC, true, 0.4);
         UIManager.hideAllUI();

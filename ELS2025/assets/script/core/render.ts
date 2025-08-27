@@ -37,6 +37,18 @@ export class ElsRender extends nge.Render {
         var g = this.gnode.getComponent(Main);
         var dat = this.grid.mcore.grid;
         var blk = g.blocks[this.index];
+        
+        // 调试：检查方块数组是否有效
+        if (!blk) {
+            console.warn(`Render: blocks[${this.index}] is null, recreating...`);
+            g.init(); // 重新初始化
+            blk = g.blocks[this.index];
+        }
+        
+        // 添加调试信息：统计有多少个非空的方块
+        var nonEmptyBlocks = 0;
+        var visibleBlocks = 0;
+        
         for (var i = 0; i < els.ZONG; i++) {
             for (var j = 0; j < els.HENG; j++) {
                 var gv = dat[i * els.GRIDW + j + 2];
@@ -47,8 +59,38 @@ export class ElsRender extends nge.Render {
                 } else {
                     opt = gv == 0 ? 0 : 180;
                 }
-                g.setBlkColor(blk[els.ZONG - i - 1][j], opt, gv % 100);
+                
+                if (gv > 0) nonEmptyBlocks++;
+                if (opt > 0) visibleBlocks++;
+                
+                // 检查单个方块节点是否有效
+                var blockNode = blk[els.ZONG - i - 1][j];
+                if (blockNode && blockNode.isValid && g.setBlkColor) {
+                    g.setBlkColor(blockNode, opt, gv % 100);
+                    
+                    // 深度调试：检查第一个可见方块的实际状态
+                    if (this.index === 0 && gv > 0 && visibleBlocks === 1) {
+                        const uiOpacity = blockNode.getComponent('UIOpacity');
+                        const sprite = blockNode.getComponent('Sprite');
+                        console.log(`First visible block debug: pos[${i}][${j}], gv=${gv}, opt=${opt}`);
+                        console.log(`Node state: active=${blockNode.active}, parent.active=${blockNode.parent?.active}`);
+                        console.log(`Components: hasSprite=${!!sprite}, spriteFrame=${!!sprite?.spriteFrame}, hasUIOpacity=${!!uiOpacity}, opacity=${uiOpacity?.opacity || 'none'}`);
+                        console.log(`Node layer: layer=${blockNode.layer}, siblingIndex=${blockNode.siblingIndex}`);
+                    }
+                } else if (gv > 0) {
+                    // 只在有方块数据时打印警告
+                    console.warn(`Block node invalid at [${this.index}][${els.ZONG - i - 1}][${j}]`);
+                }
             }
+        }
+        
+        // 调试输出 - 添加当前方块信息
+        if (this.index === 0) {
+            var currentBlock = this.grid.mcore.cur_block;
+            var currentX = this.grid.mcore.cur_x;
+            var currentY = this.grid.mcore.cur_y;
+            var currentZ = this.grid.mcore.cur_z;
+            console.log(`Render[${this.index}]: nonEmpty=${nonEmptyBlocks}, visible=${visibleBlocks}, currentBlock=${currentBlock}@(${currentX},${currentY},${currentZ})`);
         }
         //Render shadow... (新的虚影系统)
         if (this.index == 0) {

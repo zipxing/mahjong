@@ -292,19 +292,19 @@ export class ElsGrid {
 
     //用于预先绘制下落到底部的虚影，用于更好的瞄准
     testDDown() {
-        console.log("=== testDDown 开始执行 ===");
-        console.log("当前方块位置: x=" + this.mcore.cur_x + ", y=" + this.mcore.cur_y);
+        // console.log("=== testDDown 开始执行 ===");
+        // console.log("当前方块位置: x=" + this.mcore.cur_x + ", y=" + this.mcore.cur_y);
         var x, y;
         var tmp = this.mcore.clone();
         while (this.moveBlk(els.DDOWN, true) != els.REACH_BOTTOM);
         (x = this.mcore.cur_x), (y = this.mcore.cur_y);
-        console.log("计算的虚影位置: x=" + x + ", y=" + y);
+        // console.log("计算的虚影位置: x=" + x + ", y=" + y);
         this.mcore.recycle();
         this.mcore = tmp.clone();
         tmp.recycle();
         (this.mcore.tdx = x), (this.mcore.tdy = y);
-        console.log("设置虚影位置: tdx=" + this.mcore.tdx + ", tdy=" + this.mcore.tdy);
-        console.log("=== testDDown 执行完成 ===");
+        // console.log("设置虚影位置: tdx=" + this.mcore.tdx + ", tdy=" + this.mcore.tdy);
+        // console.log("=== testDDown 执行完成 ===");
         return 0;
     }
 
@@ -528,7 +528,7 @@ export class ElsGrid {
         this.mcore.cur_y = y;
         this.mcore.cur_z = z;
         if (!ai) {
-            console.log("moveBlk调用testDDown, dir=" + dir);
+            // console.log("moveBlk调用testDDown, dir=" + dir);
             this.testDDown();
         }
         return els.NORMAL;
