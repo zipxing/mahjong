@@ -519,20 +519,16 @@ export class Main extends Component {
     }
 
     showCombo(combo_count: any) {
-        console.log('showCombo called with combo_count:', combo_count);
         let combo = instantiate(this.prefabCombo);
         if (!combo) {
-            console.error('Failed to instantiate prefabCombo');
             return;
         }
         combo.parent = this.node;
         combo.position = new Vec2(320, 640);
         combo.setPosition(combo.position.x, combo.position.y, 100); // 设置Z轴层级
-        console.log('Combo node created and positioned:', combo.position);
         
         const comboComponent = combo.getComponent(ComboAnimation);
         if (!comboComponent) {
-            console.error('ComboAnimation component not found on combo node');
             return;
         }
         comboComponent.init(true, combo_count);
