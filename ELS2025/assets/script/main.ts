@@ -277,6 +277,8 @@ export class Main extends Component {
                         }
                         
                         c.parent = animNode;
+                        // 确保attack动画在正确的z轴层级上
+                        c.position = new Vec3(c.position.x, c.position.y, 100);
                     } catch (e) {
                         console.warn("Error creating attani node:", e);
                     }

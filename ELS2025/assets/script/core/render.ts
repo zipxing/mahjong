@@ -212,17 +212,30 @@ export class ElsRender extends nge.Render {
         }
     }
     drawAttackLine(group, ptfrom, ptto, delay, t) {
+        console.log("🚀🚀🚀 NEW CODE VERSION - drawAttackLine called! 🚀🚀🚀");
         var dis = Math.abs(Vec2.distance(ptfrom, ptto));
         var speed = dis / t;
         var g = this.gnode.getComponent(Main);
         var attAni = g.attani[this.index];
+        console.log(`drawAttackLine: group=${group}, index=${this.index}, attAni:`, attAni);
 
+        console.log("Starting for loop, j from 0 to 5");
         for (var j = 0; j < 6; j++) {
+            console.log(`Loop iteration j=${j}`);
             let node: Node = attAni[group][j];
+            console.log(`Attack node ${j}:`, node, "active:", node?.active, "parent:", node?.parent);
+            
+            if (!node) {
+                console.error(`Node is null for j=${j}, group=${group}, index=${this.index}`);
+                continue;
+            }
+            
             Tween.stopAllByTarget(node);
             node.setPosition(ptfrom);
-            node.active = false;
+            node.active = true; // 保持节点active，但sprite disabled
+            console.log(`Checking j == 0: j=${j}, condition=${j == 0}`);
             if (j == 0) {
+                console.log(`Entering j==0 branch for node ${j}`);
                 // attAni[group][j].runAction(sequence(
                 //     delayTime(delay),
                 //     show(),
@@ -231,13 +244,29 @@ export class ElsRender extends nge.Render {
                 //         this.getComponent(Sprite).setVisible(false);
                 //     }, attAni[group][j])
                 // ));
+                console.log(`Starting tween for node ${j}, delay: ${delay}, target position:`, ptto);
                 tween(node)
                     .target(node)
                     .delay(delay)
-                    .show()
-                    .parallel(tween(node).by(t, { angle: 1800 }), tween(node).to(t, { position: ptto }))
                     .call(() => {
-                        node.getComponent(Sprite).enabled = false;
+                        console.log(`Tween started for node ${j}, showing node`);
+                        node.active = true;
+                        const sprite = node.getComponent(Sprite);
+                        if (sprite) {
+                            sprite.enabled = true;
+                            console.log(`Sprite enabled for node ${j}`);
+                        }
+                    })
+                    .parallel(
+                        tween(node).by(t, { angle: 1800 }), 
+                        tween(node).to(t, { position: ptto })
+                    )
+                    .call(() => {
+                        console.log(`Tween finished for node ${j}, hiding sprite`);
+                        const sprite = node.getComponent(Sprite);
+                        if (sprite) {
+                            sprite.enabled = false;
+                        }
                     })
                     .start();
             } else {
@@ -262,17 +291,21 @@ export class ElsRender extends nge.Render {
     }
     drawAttack() {
         if (this.grid.mtimer.getFirstRenderFlag("attack")) {
+            console.log("drawAttack called! grid index:", this.index);
             var g = this.gnode.getComponent(Main);
             var attack_count = this.grid.mtimer.getexdata("attack");
+            console.log("attack_count:", attack_count, "grid index:", this.index);
 
             g.game.model.playMusic(els.ELS_VOICE.ATTACK_MUSIC, false);
 
             var linecnt = [2, 3, 5];
             var pt1 = this.index == 0 ? new Vec2(470, 630) : new Vec2(100, 880);
             // 播放攻击动画
+            console.log("Starting attack animation, linecnt:", linecnt[attack_count - 1]);
             for (var i = 0; i < linecnt[attack_count - 1]; i++) {
                 var pt2 = this.index == 0 ? new Vec2(100 + i * 20, 900 + i * 30) : new Vec2(470 + i * 20, 700 + i * 60);
                 var delay = Math.random() * 0.1;
+                console.log(`Drawing attack line ${i}: from (${pt1.x}, ${pt1.y}) to (${pt2.x}, ${pt2.y})`);
                 this.drawAttackLine(i, pt1, pt2, delay, 0.3);
             }
 

@@ -107,7 +107,7 @@ export class HomePage extends Component {
     onVsHandler(eve: any) {
         console.log("fengbing", "--------------- vs handle --------------");
         UIManager.hideAllUI();
-        UIManager.showUI(els.ELS_GAME_LAYER.GAME_SINGLE);
+        UIManager.showUI(els.ELS_GAME_LAYER.GAME_VS);  // 修复：VS模式应该显示GAME_VS层
         this.game.fightAI_fun();
     }
 
