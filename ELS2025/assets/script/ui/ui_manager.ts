@@ -83,9 +83,11 @@ export class CUIManager extends Singleton {
         if (layer && layer.node) {
             var node = layer.node;
             node.active = false;
-            var js = node.getComponent(layer.jsname);
-            if (js && js.hideMe) {
-                js.hideMe();
+            if (layer.jsname) {
+                var js = node.getComponent(layer.jsname);
+                if (js && js.hideMe) {
+                    js.hideMe();
+                }
             }
             this.popCurrentUI();
         }

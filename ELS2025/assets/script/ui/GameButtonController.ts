@@ -151,6 +151,10 @@ export class GameButtonController extends Component {
      * 绑定按钮事件
      */
     private bindButtonEvent(btnNode: Node, propName: string) {
+        if (!btnNode) {
+            console.error("bindButtonEvent: btnNode is null");
+            return;
+        }
         const button = btnNode.getComponent(Button);
         if (button) {
             switch (propName) {

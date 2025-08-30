@@ -134,7 +134,7 @@ export class Main extends Component {
         UIManager.registerUI(els.ELS_GAME_LAYER.GAME_VS, this.gvsNode, "GameVSmode");
         UIManager.registerUI(els.ELS_GAME_LAYER.GAME_SEARCH_AI, this.saiNode, "SearchAIPage");
         UIManager.registerUI(els.ELS_GAME_LAYER.RANK, this.rankNode, "Rank");
-        UIManager.registerUI(els.ELS_GAME_LAYER.HELP, this.helpNode);
+        UIManager.registerUI(els.ELS_GAME_LAYER.HELP, this.helpNode, "help");
         StarControl.init();
     }
 
@@ -277,8 +277,6 @@ export class Main extends Component {
                         }
                         
                         c.parent = animNode;
-                        // 确保attack动画在正确的z轴层级上
-                        c.position = new Vec3(c.position.x, c.position.y, 100);
                     } catch (e) {
                         console.warn("Error creating attani node:", e);
                     }

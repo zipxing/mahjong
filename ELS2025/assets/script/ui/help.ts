@@ -8,7 +8,7 @@ import { els } from "../core/els";
 import { UIManager } from "./ui_manager";
 const { ccclass } = _decorator;
 
-@ccclass("Help")
+@ccclass("help")
 export class Help extends Component {
     start() {
         var game = UIManager.game;
