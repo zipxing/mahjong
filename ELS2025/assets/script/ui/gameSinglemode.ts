@@ -22,6 +22,8 @@ import { tywx, WXUserInfo } from "../CommonFrame/GlobalInit";
 import { UIManager } from "./ui_manager";
 import { ShareInterface } from "../CommonFrame/ShareInterface";
 import { Main } from "../main";
+import { GameButtonController } from "./GameButtonController";
+
 const { ccclass, property } = _decorator;
 
 @ccclass("GameSinglemode")
@@ -44,15 +46,8 @@ export class GameSinglemode extends Component {
     @property(Node)
     public nodeAdapterGame = null;
 
-    // 游戏控制按钮
-    @property(Node)
-    public btnRotate = null;
-    @property(Node)
-    public btnMoveLeft = null;
-    @property(Node)
-    public btnMoveRight = null;
-    @property(Node)
-    public btnDrop = null;
+    // 游戏按钮控制器（运行时创建）
+    private buttonController: GameButtonController = null;
 
     gameview: any;
     game_mask: Node;
@@ -146,92 +141,11 @@ export class GameSinglemode extends Component {
         } 
     }
 
-    createControlButtons() {
-        // 如果按钮已经存在，直接显示
-        if (this.btnRotate && this.btnMoveLeft && this.btnMoveRight && this.btnDrop) {
-            this.btnRotate.active = true;
-            this.btnMoveLeft.active = true;
-            this.btnMoveRight.active = true;
-            this.btnDrop.active = true;
-            return;
-        }
 
-        // 创建按钮容器
-        const buttonContainer = new Node("ControlButtons");
-        buttonContainer.addComponent(UITransform);
-        buttonContainer.getComponent(UITransform).setContentSize(720, 120);
-        buttonContainer.position = new Vec3(0, -500, 0); // 放在界面底部
-        this.node.addChild(buttonContainer);
 
-        // 按钮配置
-        const buttonConfigs = [
-            { name: "btnRotate", text: "旋转", x: -210, prop: "btnRotate" },
-            { name: "btnMoveLeft", text: "←", x: -70, prop: "btnMoveLeft" },
-            { name: "btnMoveRight", text: "→", x: 70, prop: "btnMoveRight" },
-            { name: "btnDrop", text: "↓", x: 210, prop: "btnDrop" }
-        ];
 
-        // 创建每个按钮
-        buttonConfigs.forEach(config => {
-            const btnNode = this.createButton(config.text, config.x, 0);
-            buttonContainer.addChild(btnNode);
-            
-            // 将按钮赋值给对应的属性
-            this[config.prop] = btnNode;
-            
-            // 绑定事件
-            this.bindButtonEvent(btnNode, config.prop);
-        });
-    }
 
-    createButton(text: string, x: number, y: number): Node {
-        const btnNode = new Node("Button");
-        
-        // 添加UITransform组件
-        const uiTransform = btnNode.addComponent(UITransform);
-        uiTransform.setContentSize(80, 80);
-        
-        // 添加Sprite组件（按钮背景）
-        const sprite = btnNode.addComponent(Sprite);
-        sprite.color = new Color(100, 149, 237, 255); // 蓝色背景
-        
-        // 添加Button组件
-        const button = btnNode.addComponent(Button);
-        
-        // 创建文字标签
-        const labelNode = new Node("Label");
-        const labelTransform = labelNode.addComponent(UITransform);
-        labelTransform.setContentSize(80, 80);
-        const label = labelNode.addComponent(Label);
-        label.string = text;
-        label.fontSize = 24;
-        label.color = new Color(255, 255, 255, 255); // 白色文字
-        
-        btnNode.addChild(labelNode);
-        btnNode.position = new Vec3(x, y, 0);
-        
-        return btnNode;
-    }
 
-    bindButtonEvent(btnNode: Node, propName: string) {
-        const button = btnNode.getComponent(Button);
-        if (button) {
-            switch (propName) {
-                case "btnRotate":
-                    button.node.on(Node.EventType.TOUCH_END, this.onRotateHandler, this);
-                    break;
-                case "btnMoveLeft":
-                    button.node.on(Node.EventType.TOUCH_END, this.onMoveLeftHandler, this);
-                    break;
-                case "btnMoveRight":
-                    button.node.on(Node.EventType.TOUCH_END, this.onMoveRightHandler, this);
-                    break;
-                case "btnDrop":
-                    button.node.on(Node.EventType.TOUCH_END, this.onDropHandler, this);
-                    break;
-            }
-        }
-    }
 
     showMe() {
         if (this.win_single) this.win_single.active = false;
@@ -242,18 +156,19 @@ export class GameSinglemode extends Component {
         if (this.nodeAdapterBgHome) this.nodeAdapterBgHome.active = false;
         if (this.nodeAdapterGame) this.nodeAdapterGame.active = true;
         
-        // 创建控制按钮
-        this.createControlButtons();
+        // 创建游戏按钮控制器
+        if (!this.buttonController) {
+            this.buttonController = GameButtonController.createAndInit(this.game, this.node);
+        }
     }
 
     hideMe() {
         this.winline.active = false;
         
         // 隐藏控制按钮
-        if (this.btnRotate) this.btnRotate.active = false;
-        if (this.btnMoveLeft) this.btnMoveLeft.active = false;
-        if (this.btnMoveRight) this.btnMoveRight.active = false;
-        if (this.btnDrop) this.btnDrop.active = false;
+        if (this.buttonController) {
+            this.buttonController.hideButtons();
+        }
     }
 
 
@@ -370,32 +285,5 @@ export class GameSinglemode extends Component {
         console.log("onwinSaveHandler");
     }
 
-    // 控制按钮事件处理函数
-    onRotateHandler(eve: any) {
-        console.log("旋转按钮被点击");
-        if (this.game && this.game.playActionBase) {
-            this.game.playActionBase(0, "T"); // T表示旋转
-        }
-    }
 
-    onMoveLeftHandler(eve: any) {
-        console.log("左移按钮被点击");
-        if (this.game && this.game.playActionBase) {
-            this.game.playActionBase(0, "L"); // L表示左移
-        }
-    }
-
-    onMoveRightHandler(eve: any) {
-        console.log("右移按钮被点击");
-        if (this.game && this.game.playActionBase) {
-            this.game.playActionBase(0, "R"); // R表示右移
-        }
-    }
-
-    onDropHandler(eve: any) {
-        console.log("下落按钮被点击");
-        if (this.game && this.game.playActionBase) {
-            this.game.playActionBase(0, "W"); // W表示直接下落
-        }
-    }
 }

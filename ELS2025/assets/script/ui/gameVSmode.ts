@@ -8,6 +8,7 @@ import { UIManager } from "./ui_manager";
 import { ShareInterface } from "../CommonFrame/ShareInterface";
 import { StarControl } from "./star_control";
 import { Main } from "../main";
+import { GameButtonController } from "./GameButtonController";
 const { ccclass, property } = _decorator;
 
 @ccclass("GameVSmode")
@@ -28,6 +29,10 @@ export class GameVSmode extends Component {
     public nodeAdapterBgHome = null;
     @property(Node)
     public nodeAdapterGame = null;
+    
+    // 游戏按钮控制器（运行时创建）
+    private buttonController: GameButtonController = null;
+    
     gameview: any;
     game: any;
     model: any;
@@ -50,6 +55,11 @@ export class GameVSmode extends Component {
         this.stopAllParticleSys();
         this.nodeAdapterBgHome.active = false;
         this.nodeAdapterGame.active = true;
+        
+        // 创建游戏按钮控制器
+        if (!this.buttonController) {
+            this.buttonController = GameButtonController.createAndInit(this.game, this.node);
+        }
     }
 
     showWin() {
