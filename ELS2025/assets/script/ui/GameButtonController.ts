@@ -215,7 +215,10 @@ export class GameButtonController extends Component {
      * 执行按钮对应的游戏动作
      */
     private executeButtonAction(propName: string) {
-        if (!this.game || !this.game.playActionBase) return;
+        if (!this.game || !this.game.playActionBase) {
+            console.error("Game instance or playActionBase method not available!");
+            return;
+        }
         
         switch (propName) {
             case "btnRotate":

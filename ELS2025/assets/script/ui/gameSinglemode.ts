@@ -75,8 +75,7 @@ export class GameSinglemode extends Component {
     }
 
     start() {
-        this.game = UIManager.game;
-        this.model = this.game.model;
+        // 游戏实例将在showMe中初始化
     }
 
     // updateWinLine() {
@@ -148,6 +147,10 @@ export class GameSinglemode extends Component {
 
 
     showMe() {
+        // 初始化游戏实例（与VS模式保持一致）
+        this.game = UIManager.game;
+        this.model = this.game.model;
+        
         if (this.win_single) this.win_single.active = false;
         if (this.lose_single) this.lose_single.active = false;
         if (this.sl_bg) this.sl_bg.active = false;
