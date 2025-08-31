@@ -65,9 +65,8 @@ export class ElsRender extends nge.Render {
             }
         }
 
-        //Render shadow... (新的虚影系统)
+        //Render shadow... (优化的虚影系统)
         if (this.index == 0) {
-            var customShadow = null;
             try {
                 var cb = this.grid.mcore.cur_block;
                 var cx = this.grid.mcore.tdx;
@@ -79,44 +78,31 @@ export class ElsRender extends nge.Render {
                     return;
                 }
                 
-                // 虚影系统
-                customShadow = this.gnode.getChildByName("my_shadow");
+                // 优化：使用预创建的虚影节点，避免每帧创建/销毁
+                var customShadow = this.gnode.getChildByName("my_shadow");
                 if (!customShadow || !customShadow.isValid) {
-                    // 清理可能存在的无效节点
-                    let oldShadow = this.gnode.getChildByName("my_shadow");
-                    if (oldShadow && !oldShadow.isValid) {
-                        try {
-                            oldShadow.removeFromParent();
-                        } catch (e) {
-                            console.warn("Failed to remove old shadow:", e);
-                        }
+                    // 只在第一次或节点无效时创建
+                    customShadow = new Node("my_shadow");
+                    const sprite = customShadow.addComponent(Sprite);
+                    const transform = customShadow.addComponent(UITransform);
+                    const opacity = customShadow.addComponent(UIOpacity);
+                    
+                    // 设置基本属性（只需要设置一次）
+                    if (transform) {
+                        transform.setContentSize(50, 50);
+                        transform.setAnchorPoint(0.5, 0.5);
+                    }
+                    if (opacity) {
+                        opacity.opacity = 80; // 半透明效果
                     }
                     
-                    // 创建虚影节点
-                    try {
-                        customShadow = new Node("my_shadow");
-                        const sprite = customShadow.addComponent(Sprite);
-                        const transform = customShadow.addComponent(UITransform);
-                        const opacity = customShadow.addComponent(UIOpacity);
-                        
-                        // 设置基本属性
-                        if (transform) {
-                            transform.setContentSize(50, 50);
-                        }
-                        if (sprite && g.blockimgs && g.blockimgs[0]) {
-                            sprite.spriteFrame = g.blockimgs[0];
-                        }
-                        if (opacity) {
-                            opacity.opacity = 100; // 半透明效果
-                        }
-                        
-                        // 添加到游戏节点
-                        customShadow.parent = this.gnode;
-                        customShadow.active = true;
-                    } catch (e) {
-                        console.warn("Failed to create shadow node:", e);
-                        return;
-                    }
+                    // 添加到游戏节点
+                    customShadow.parent = this.gnode;
+                    
+                    // 缓存组件引用以提高性能
+                    customShadow['_shadowSprite'] = sprite;
+                    customShadow['_shadowOpacity'] = opacity;
+                    customShadow['_shadowTransform'] = transform;
                 }
             } catch (e) {
                 console.warn("Error in shadow system initialization:", e);
@@ -150,33 +136,21 @@ export class ElsRender extends nge.Render {
                         shadowY += offset[1] * bs;
                     }
                     
-                    try {
-                        customShadow.setPosition(shadowX, shadowY, 0);
-                        customShadow.setScale(1, 1, 1);
-                        customShadow.active = true;
-                        
-                        // 设置虚影组件
-                        const shadowSprite = customShadow.getComponent(Sprite);
-                        const shadowOpacity = customShadow.getComponent(UIOpacity);
-                        const shadowTransform = customShadow.getComponent(UITransform);
-                        
-                        if (shadowSprite && g.blockimgs && g.blockimgs[cb + 11]) {
+                    // 优化：使用缓存的组件引用，避免重复getComponent调用
+                    const shadowSprite = customShadow['_shadowSprite'] || customShadow.getComponent(Sprite);
+                    const shadowOpacity = customShadow['_shadowOpacity'] || customShadow.getComponent(UIOpacity);
+                    
+                    // 更新位置和旋转（高频操作）
+                    customShadow.setPosition(shadowX, shadowY, 0);
+                    customShadow.eulerAngles = new Vec3(0, 0, -90 * cz);
+                    customShadow.active = true;
+                    
+                    // 更新贴图（只在需要时更新，避免不必要的赋值）
+                    if (shadowSprite && g.blockimgs && g.blockimgs[cb + 11]) {
+                        if (shadowSprite.spriteFrame !== g.blockimgs[cb + 11]) {
                             shadowSprite.spriteFrame = g.blockimgs[cb + 11];
-                            shadowSprite.enabled = true;
                         }
-                        
-                        if (shadowOpacity) {
-                            shadowOpacity.opacity = 80; // 更透明的虚影效果
-                        }
-                        
-                        if (shadowTransform) {
-                            shadowTransform.setAnchorPoint(0.5, 0.5);
-                        }
-                        
-                        // 设置旋转（与当前方块同步）
-                        customShadow.eulerAngles = new Vec3(0, 0, -90 * cz);
-                    } catch (e) {
-                        console.warn("Error updating shadow node:", e);
+                        shadowSprite.enabled = true;
                     }
                 }
             } catch (e) {
