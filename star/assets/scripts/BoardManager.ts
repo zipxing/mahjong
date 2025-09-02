@@ -18,6 +18,8 @@ export class BoardManager {
     private blockSize: number = 60;
     private blockSpacing: number = 5;
     
+
+    
     /**
      * 初始化棋盘管理器
      */
@@ -35,6 +37,8 @@ export class BoardManager {
         console.log(`📏 最终方块尺寸: ${this.blockSize}px, 间距: ${this.blockSpacing}px`);
         console.log(`📐 棋盘总尺寸: ${this.getTotalBoardSize()}px`);
     }
+    
+
     
     /**
      * 动态适配屏幕尺寸
@@ -303,10 +307,9 @@ export class BoardManager {
         const boardLeftTopX = -totalWidth / 2;
         const boardLeftTopY = totalHeight / 2;
         
-        // 应用实测偏移修正 (通过实际测试得出的偏移量)
-        // 根据 UI(178,609) 应该识别为 (1,1) 但被识别为 (0,0) 的情况调整
-        const boardOffsetX = 19 - 23;   // 向左调整约半个方块
-        const boardOffsetY = -229 + 23; // 向上调整约半个方块 
+        // 直接使用已知有效的固定偏移量
+        const boardOffsetX = -4;   
+        const boardOffsetY = -206; 
         const correctedBoardLeftTopX = boardLeftTopX + boardOffsetX;
         const correctedBoardLeftTopY = boardLeftTopY + boardOffsetY;
         
