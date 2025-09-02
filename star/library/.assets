@@ -1,0 +1,19 @@
+{
+    "version": "1.0.1",
+    "data": {
+        "paths": [
+            "scenes",
+            "scripts",
+            "scenes/GameScene.scene",
+            "scripts/BlockManager.ts",
+            "scripts/BoardManager.ts",
+            "scripts/EliminationManager.ts",
+            "scripts/GameManager.ts",
+            "scripts/GameStateManager.ts",
+            "scripts/InputManager.ts",
+            "scripts/PhysicsManager.ts",
+            "scripts/ScoreManager.ts",
+            "scripts/UIManager.ts"
+        ]
+    }
+}

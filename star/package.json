@@ -1,0 +1,17 @@
+{
+  "name": "StarElimination",
+  "displayName": "消灭星星",
+  "uuid": "f5e2c8d4-9876-4321-b789-123456789abc",
+  "version": "1.0.0",
+  "description": "基于Cocos Creator开发的消灭星星游戏，支持方块消除和物理下落效果",
+  "author": "Game Developer",
+  "creator": {
+    "version": "3.8.7"
+  },
+  "scripts": {
+    "build": "cocos build",
+    "preview": "cocos preview"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

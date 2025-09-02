@@ -1,0 +1,29 @@
+{
+  "__version__": "1.3.9",
+  "web-mobile": {
+    "orientation": "portrait",
+    "outputName": "star-elimination",
+    "title": "消灭星星",
+    "buildPath": "build/web-mobile",
+    "polyfills": {
+      "asyncFunctions": false
+    }
+  },
+  "web-desktop": {
+    "orientation": "portrait",
+    "outputName": "star-elimination",
+    "title": "消灭星星",
+    "buildPath": "build/web-desktop"
+  },
+  "android": {
+    "orientation": "portrait",
+    "packageName": "com.game.starelimination",
+    "targetSdkVersion": "30",
+    "appName": "消灭星星"
+  },
+  "ios": {
+    "orientation": "portrait",
+    "bundleId": "com.game.starelimination",
+    "appName": "消灭星星"
+  }
+}

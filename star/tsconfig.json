@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    "module": "es2015",
+    "lib": [
+      "es2017",
+      "dom"
+    ],
+    "target": "es2017",
+    "experimentalDecorators": true,
+    "skipLibCheck": true,
+    "moduleResolution": "node",
+    "strict": true,
+    "declaration": false,
+    "sourceMap": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": "./",
+    "types": [
+      "cc"
+    ],
+    "paths": {
+      "db://*": [
+        "./assets/*"
+      ]
+    }
+  },
+  "include": [
+    "assets/**/*"
+  ],
+  "exclude": [
+    "node_modules/**/*",
+    "library/**/*",
+    "temp/**/*",
+    "build/**/*"
+  ]
+}

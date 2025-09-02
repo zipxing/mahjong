@@ -1,0 +1,69 @@
+{
+  "9132e5e0-7467-47f3-bca5-358e161cb85b": {
+    "url": "db://assets/scripts/BlockManager.ts",
+    "value": {},
+    "versionCode": 1
+  },
+  "44933052-abc7-4505-8502-6a6324b004e2": {
+    "url": "db://assets/scripts/BoardManager.ts",
+    "value": {},
+    "versionCode": 1
+  },
+  "29ef3503-3b46-40b4-aaad-a699ace575ee": {
+    "url": "db://assets/scenes/GameScene.scene",
+    "value": {
+      "depends": [
+        "29ef3503-3b46-40b4-aaad-a699ace575ee"
+      ],
+      "dependScripts": [
+        "554602b3-9a93-4a9f-b2b7-919f0a391f85"
+      ]
+    },
+    "versionCode": 1
+  },
+  "a1b2c3d4-e5f6-7890-1234-567890abcdef": {
+    "url": "db://assets/scenes",
+    "value": {},
+    "versionCode": 1
+  },
+  "b2c3d4e5-f6a7-8901-2345-67890abcdef1": {
+    "url": "db://assets/scripts",
+    "value": {},
+    "versionCode": 1
+  },
+  "071790e4-e335-497b-b749-d22cb8741881": {
+    "url": "db://assets/scripts/EliminationManager.ts",
+    "value": {},
+    "versionCode": 1
+  },
+  "554602b3-9a93-4a9f-b2b7-919f0a391f85": {
+    "url": "db://assets/scripts/GameManager.ts",
+    "value": {},
+    "versionCode": 1
+  },
+  "7b69de8f-7758-43d9-b9b0-b98627441d65": {
+    "url": "db://assets/scripts/GameStateManager.ts",
+    "value": {},
+    "versionCode": 1
+  },
+  "bc46c608-983f-4073-9d14-439033aae9ea": {
+    "url": "db://assets/scripts/InputManager.ts",
+    "value": {},
+    "versionCode": 1
+  },
+  "aecaa9ac-b031-4199-b80a-fa0b07e7d35c": {
+    "url": "db://assets/scripts/PhysicsManager.ts",
+    "value": {},
+    "versionCode": 1
+  },
+  "8303aef0-1a84-44b3-a2ea-8e2a85a061bc": {
+    "url": "db://assets/scripts/ScoreManager.ts",
+    "value": {},
+    "versionCode": 1
+  },
+  "276f262c-7cbd-4921-85a5-37d6d97ee512": {
+    "url": "db://assets/scripts/UIManager.ts",
+    "value": {},
+    "versionCode": 1
+  }
+}
