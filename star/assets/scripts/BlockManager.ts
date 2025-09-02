@@ -65,8 +65,6 @@ export class BlockManager {
      * 设置方块外观
      */
     private setupBlockAppearance(sprite: Sprite, blockType: number, blockSize: number) {
-        console.log(`🎨 开始设置方块外观: Type ${blockType}, Size ${blockSize}px`);
-        
         try {
             if (this.blockAtlas) {
                 // 使用图集中的sprite frame
@@ -75,26 +73,17 @@ export class BlockManager {
                 
                 if (spriteFrame) {
                     sprite.spriteFrame = spriteFrame;
-                    console.log(`🎨 使用图集sprite: ${spriteFrameName}`);
                 } else {
-                    console.warn(`⚠️ 图集中未找到 ${spriteFrameName}，使用纯色方块`);
                     this.setupColorBlock(sprite, blockType, blockSize);
                 }
             } else {
                 // 使用纯色方块
-                console.log(`🎨 使用纯色方块模式`);
                 this.setupColorBlock(sprite, blockType, blockSize);
             }
-            console.log(`✅ 方块外观设置完成`);
         } catch (error) {
             console.error(`❌ 设置方块外观时出错:`, error);
             // 简单的回退方案：只设置颜色，不使用SpriteFrame
-            try {
-                sprite.color = this.blockColors[blockType] || this.blockColors[0];
-                console.log(`🔧 使用简单颜色回退方案: ${sprite.color.toHEX()}`);
-            } catch (fallbackError) {
-                console.error(`❌ 回退方案也失败:`, fallbackError);
-            }
+            sprite.color = this.blockColors[blockType] || this.blockColors[0];
         }
     }
     
@@ -102,25 +91,18 @@ export class BlockManager {
      * 设置纯色方块
      */
     private setupColorBlock(sprite: Sprite, blockType: number, blockSize: number) {
-        console.log(`🎨 开始设置纯色方块: Type ${blockType}, Size ${blockSize}px`);
-        
         try {
             // 创建与方块尺寸匹配的纹理
-            console.log(`🔧 创建SpriteFrame...`);
             this.createDefaultSpriteFrame(sprite, blockSize);
             
             // 设置颜色
             if (blockType < this.blockColors.length) {
                 sprite.color = this.blockColors[blockType];
-                console.log(`🎨 设置方块颜色: Type ${blockType} -> ${this.blockColors[blockType].toHEX()}`);
             } else {
-                console.warn(`⚠️ 方块类型超出范围: ${blockType}，使用默认颜色`);
                 sprite.color = this.blockColors[0];
             }
-            console.log(`✅ 纯色方块设置完成`);
         } catch (error) {
             console.error(`❌ 设置纯色方块时出错:`, error);
-            console.log(`🔧 尝试最简单的颜色设置...`);
             sprite.color = this.blockColors[0]; // 红色作为回退
         }
     }
@@ -155,7 +137,6 @@ export class BlockManager {
         spriteFrame.rect = new Rect(0, 0, size, size);
         
         sprite.spriteFrame = spriteFrame;
-        console.log(`✅ 创建尺寸匹配的SpriteFrame成功: ${size}×${size}px`);
     }
     
     /**

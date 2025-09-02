@@ -70,11 +70,8 @@ export class InputManager {
         const touchPos = event.getUILocation();
         console.log(`📱 触摸UI坐标: (${touchPos.x}, ${touchPos.y})`);
         
-        // 将UI坐标转换为世界坐标
-        const worldPos = this.uiToWorldPosition(touchPos);
-        console.log(`🌍 转换后世界坐标: (${worldPos.x}, ${worldPos.y})`);
-        
-        this.handlePointerDown(worldPos);
+        // 直接传递UI坐标，让BoardManager处理坐标转换
+        this.handlePointerDown(touchPos);
     }
     
     /**
@@ -90,11 +87,8 @@ export class InputManager {
         const touchPos = event.getUILocation();
         console.log(`📱 触摸UI坐标: (${touchPos.x}, ${touchPos.y})`);
         
-        // 将UI坐标转换为世界坐标
-        const worldPos = this.uiToWorldPosition(touchPos);
-        console.log(`🌍 转换后世界坐标: (${worldPos.x}, ${worldPos.y})`);
-        
-        this.handlePointerUp(worldPos);
+        // 直接传递UI坐标，让BoardManager处理坐标转换
+        this.handlePointerUp(touchPos);
     }
     
     /**
@@ -122,11 +116,8 @@ export class InputManager {
         const mousePos = event.getUILocation();
         console.log(`🖱️ 鼠标UI坐标: (${mousePos.x}, ${mousePos.y})`);
         
-        // 将UI坐标转换为世界坐标
-        const worldPos = this.uiToWorldPosition(mousePos);
-        console.log(`🌍 转换后世界坐标: (${worldPos.x}, ${worldPos.y})`);
-        
-        this.handlePointerDown(worldPos);
+        // 直接传递UI坐标，让BoardManager处理坐标转换
+        this.handlePointerDown(mousePos);
     }
     
     /**
@@ -142,23 +133,20 @@ export class InputManager {
         const mousePos = event.getUILocation();
         console.log(`🖱️ 鼠标UI坐标: (${mousePos.x}, ${mousePos.y})`);
         
-        // 将UI坐标转换为世界坐标
-        const worldPos = this.uiToWorldPosition(mousePos);
-        console.log(`🌍 转换后世界坐标: (${worldPos.x}, ${worldPos.y})`);
-        
-        this.handlePointerUp(worldPos);
+        // 直接传递UI坐标，让BoardManager处理坐标转换
+        this.handlePointerUp(mousePos);
     }
     
     /**
      * 处理指针按下
      */
-    private handlePointerDown(worldPos: Vec3) {
+    private handlePointerDown(uiPos: Vec3) {
         console.log(`\n👆 ===== 指针按下事件 =====`);
-        console.log(`📍 世界坐标: (${worldPos.x.toFixed(1)}, ${worldPos.y.toFixed(1)})`);
+        console.log(`📍 UI坐标: (${uiPos.x.toFixed(1)}, ${uiPos.y.toFixed(1)})`);
         console.log(`🔍 调用来源跟踪:`);
         console.trace();
         
-        const gridPos = this.inputInterface.screenToGridPosition(worldPos);
+        const gridPos = this.inputInterface.screenToGridPosition(uiPos);
         console.log(`🎯 网格坐标: (${gridPos.row}, ${gridPos.col})`);
         
         const blockData = this.inputInterface.getBlockAt(gridPos.row, gridPos.col);
@@ -178,9 +166,9 @@ export class InputManager {
     /**
      * 处理指针释放
      */
-    private handlePointerUp(worldPos: Vec3) {
+    private handlePointerUp(uiPos: Vec3) {
         console.log(`\n👆 ===== 指针释放事件 =====`);
-        console.log(`📍 世界坐标: (${worldPos.x.toFixed(1)}, ${worldPos.y.toFixed(1)})`);
+        console.log(`📍 UI坐标: (${uiPos.x.toFixed(1)}, ${uiPos.y.toFixed(1)})`);
         
         // 防止重复点击
         const currentTime = Date.now();
@@ -192,7 +180,7 @@ export class InputManager {
         }
         this.lastClickTime = currentTime;
         
-        const gridPos = this.inputInterface.screenToGridPosition(worldPos);
+        const gridPos = this.inputInterface.screenToGridPosition(uiPos);
         console.log(`🎯 网格坐标: (${gridPos.row}, ${gridPos.col})`);
         
         const blockData = this.inputInterface.getBlockAt(gridPos.row, gridPos.col);
@@ -370,6 +358,13 @@ export class InputManager {
         }
         
         console.log(`🔄 最终坐标转换: UI(${uiPos.x}, ${uiPos.y}) -> World(${worldX}, ${worldY})`);
+        
+        // 添加坐标转换验证
+        console.log(`🔍 坐标转换验证:`);
+        console.log(`   Canvas中心应为: (360, 640)`);
+        console.log(`   UI中心(360, 640) 应转换为 World(0, 0)`);
+        console.log(`   当前UI(${uiPos.x}, ${uiPos.y}) 相对中心偏移: (${uiPos.x - 360}, ${uiPos.y - 640})`);
+        console.log(`   实际转换结果: (${worldX}, ${worldY})`);
         
         return new Vec3(worldX, worldY, 0);
     }
