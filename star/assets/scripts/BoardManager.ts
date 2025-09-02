@@ -279,151 +279,54 @@ export class BoardManager {
      * 屏幕坐标转换为网格坐标
      */
     screenToGridPosition(uiPos: Vec3): {row: number, col: number} {
-        console.log(`\n🔄 ===== 坐标转换开始 =====`);
-        console.log(`📍 输入UI坐标: (${uiPos.x.toFixed(1)}, ${uiPos.y.toFixed(1)})`);
-        
-        // ✅ 正确方法：直接相对于GameBoard计算！
+        // 获取UITransform组件
         const gameBoardUITransform = this.gameBoardNode.getComponent(UITransform);
         if (!gameBoardUITransform) {
             console.error(`❌ GameBoard没有UITransform组件`);
             return {row: 0, col: 0};
         }
         
-        // 获取Canvas和GameBoard的详细信息
-        const canvasNode = this.gameBoardNode.parent;
-        const canvasTransform = canvasNode?.getComponent(UITransform);
+        // 使用convertToNodeSpaceAR转换坐标
+        const worldPos = new Vec3(uiPos.x, uiPos.y, 0);
+        const localPos = gameBoardUITransform.convertToNodeSpaceAR(worldPos);
         
-        if (!canvasTransform) {
-            console.error(`❌ Canvas没有UITransform组件`);
+        if (isNaN(localPos.x) || isNaN(localPos.y)) {
+            console.error(`❌ convertToNodeSpaceAR返回NaN`);
             return {row: 0, col: 0};
         }
         
-        const gameBoardPos = this.gameBoardNode.position;  // GameBoard相对于Canvas的位置
-        const gameBoardSize = gameBoardUITransform.contentSize;
-        const gameBoardAnchor = gameBoardUITransform.anchorPoint;
-        const canvasSize = canvasTransform.contentSize;
-        
-        console.log(`📋 Canvas信息:`);
-        console.log(`   Canvas名称: ${canvasNode?.name}`);
-        console.log(`   Canvas尺寸: ${canvasSize.width} × ${canvasSize.height}`);
-        
-        console.log(`🎮 GameBoard信息:`);
-        console.log(`   GameBoard相对Canvas位置: (${gameBoardPos.x.toFixed(1)}, ${gameBoardPos.y.toFixed(1)})`);
-        console.log(`   GameBoard尺寸: ${gameBoardSize.width} × ${gameBoardSize.height}`);
-        console.log(`   GameBoard锚点: (${gameBoardAnchor.x}, ${gameBoardAnchor.y})`);
-        
-        // 🔥 关键修复：正确转换UI坐标到Canvas坐标系，再到GameBoard坐标
-        
-        // 步骤1：UI坐标转Canvas坐标
-        // 测试两种Y轴方向，看哪种正确
-        const canvasX = uiPos.x - canvasSize.width / 2;   // X坐标转换
-        
-        // 方法1：假设UI原点在左上角（Y向下递增）
-        const canvasY_method1 = (canvasSize.height - uiPos.y) - canvasSize.height / 2;
-        
-        // 方法2：假设UI原点在左下角（Y向上递增）
-        const canvasY_method2 = uiPos.y - canvasSize.height / 2;
-        
-        console.log(`🔄 Y轴方向测试:`);
-        console.log(`   方法1 (UI原点左上角): Canvas Y = ${canvasY_method1.toFixed(1)}`);
-        console.log(`   方法2 (UI原点左下角): Canvas Y = ${canvasY_method2.toFixed(1)}`);
-        
-        // 选择正确的Y坐标
-        // 点击左上角应该得到接近第一个方块Y坐标(207)的正值
-        // 方法1得到正值，方法2得到负值，所以应该选择方法1
-        const canvasY = canvasY_method1;
-        
-        console.log(`✅ 选择方法1 (UI原点左上角)，Canvas Y = ${canvasY.toFixed(1)}`);
-        
-        console.log(`🔄 坐标转换步骤:`);
-        console.log(`   1️⃣ UI坐标: (${uiPos.x.toFixed(1)}, ${uiPos.y.toFixed(1)})`);
-        console.log(`   2️⃣ Canvas坐标: (${canvasX.toFixed(1)}, ${canvasY.toFixed(1)})`);
-        
-        // 步骤2：Canvas坐标转GameBoard本地坐标
-        // GameBoard position(0, 0)表示它在Canvas中心，所以Canvas坐标就是相对于GameBoard中心的坐标
-        const gameBoardLocalX = canvasX - gameBoardPos.x;
-        const gameBoardLocalY = canvasY - gameBoardPos.y;
-        
-        console.log(`   3️⃣ GameBoard本地坐标 (原始): (${gameBoardLocalX.toFixed(1)}, ${gameBoardLocalY.toFixed(1)})`);
-        
-        // 🚨 临时修正：观察到Y坐标偏移约200像素，可能GameBoard实际位置不在Canvas中心
-        // 根据点击左上角应该得到第一个方块坐标(-207, 207)的事实，尝试调整
-        const expectedY = 207;  // 左上角应该得到的Y坐标
-        const actualY = gameBoardLocalY;
-        const yOffset = expectedY - actualY;
-        
-        console.log(`🔧 Y坐标分析:`);
-        console.log(`   期望Y坐标 (第一个方块): ${expectedY}`);
-        console.log(`   实际Y坐标: ${actualY.toFixed(1)}`);
-        console.log(`   计算出的Y偏移: ${yOffset.toFixed(1)}`);
-        
-        // 应用Y偏移修正
-        const correctedY = gameBoardLocalY + yOffset;
-        console.log(`   修正后Y坐标: ${correctedY.toFixed(1)}`);
-        
-        console.log(`   3️⃣ GameBoard本地坐标 (修正后): (${gameBoardLocalX.toFixed(1)}, ${correctedY.toFixed(1)})`);
-        
-        // 验证：检查坐标是否在GameBoard范围内
-        const halfSize = gameBoardSize.width / 2;
-        if (Math.abs(gameBoardLocalX) > halfSize || Math.abs(gameBoardLocalY) > halfSize) {
-            console.warn(`⚠️ 点击位置超出GameBoard范围: (${gameBoardLocalX.toFixed(1)}, ${gameBoardLocalY.toFixed(1)}), 范围: ±${halfSize}`);
-        }
-        
-        const localPos = new Vec3(gameBoardLocalX, correctedY, 0);
-        
-        // 计算网格参数
+        // 计算棋盘参数
         const totalWidth = this.boardSize * this.blockSize + (this.boardSize - 1) * this.blockSpacing;
         const totalHeight = this.boardSize * this.blockSize + (this.boardSize - 1) * this.blockSpacing;
-        console.log(`📏 棋盘总尺寸: ${totalWidth} x ${totalHeight}`);
         
-        // GameBoard本地坐标系：中心为(0,0)，向右+X，向上+Y
-        // 第一个方块[0][0]在左上角
-        const startX = -totalWidth / 2 + this.blockSize / 2;  // 第一个方块的中心X
-        const startY = totalHeight / 2 - this.blockSize / 2;   // 第一个方块的中心Y
-        console.log(`🏁 第一个方块[0][0]中心: (${startX.toFixed(1)}, ${startY.toFixed(1)})`);
+        // 计算理论棋盘左上角
+        const boardLeftTopX = -totalWidth / 2;
+        const boardLeftTopY = totalHeight / 2;
         
-        // 使用本地坐标直接计算网格位置
-        const blockStep = this.blockSize + this.blockSpacing;
+        // 应用实测偏移修正 (通过实际测试得出的偏移量)
+        // 根据 UI(178,609) 应该识别为 (1,1) 但被识别为 (0,0) 的情况调整
+        const boardOffsetX = 19 - 23;   // 向左调整约半个方块
+        const boardOffsetY = -229 + 23; // 向上调整约半个方块 
+        const correctedBoardLeftTopX = boardLeftTopX + boardOffsetX;
+        const correctedBoardLeftTopY = boardLeftTopY + boardOffsetY;
         
-        // 计算网格坐标：从第一个方块位置开始计算偏移
-        const rawCol = (localPos.x - startX) / blockStep;
-        const rawRow = (startY - localPos.y) / blockStep;  // Y轴翻转：startY是顶部，向下递减
+        // 计算相对偏移
+        const offsetX = localPos.x - correctedBoardLeftTopX;
+        const offsetY = correctedBoardLeftTopY - localPos.y;
         
-        console.log(`📏 网格计算过程:`);
-        console.log(`   本地坐标: (${localPos.x.toFixed(1)}, ${localPos.y.toFixed(1)})`);
-        console.log(`   第一个方块: (${startX.toFixed(1)}, ${startY.toFixed(1)})`);
-        console.log(`   X偏移: ${localPos.x.toFixed(1)} - (${startX.toFixed(1)}) = ${(localPos.x - startX).toFixed(1)}`);
-        console.log(`   Y偏移: ${startY.toFixed(1)} - (${localPos.y.toFixed(1)}) = ${(startY - localPos.y).toFixed(1)}`);
-        console.log(`   方块步长: ${blockStep}px`);
-        console.log(`   原始网格: Row=${rawRow.toFixed(2)}, Col=${rawCol.toFixed(2)}`);
+        // 计算网格位置
+        const cellWidth = this.blockSize + this.blockSpacing;
+        const cellHeight = this.blockSize + this.blockSpacing;
+        const col = Math.floor(offsetX / cellWidth);
+        const row = Math.floor(offsetY / cellHeight);
         
-        // 检查点击是否在棋盘范围内
-        if (rawCol < -0.5 || rawRow < -0.5 || rawCol >= this.boardSize - 0.5 || rawRow >= this.boardSize - 0.5) {
-            console.warn(`⚠️ 点击位置超出棋盘范围: (${rawRow.toFixed(2)}, ${rawCol.toFixed(2)})`);
-        }
-        console.log(`🧮 原始网格坐标: (${rawRow.toFixed(2)}, ${rawCol.toFixed(2)})`);
+        // 限制范围并输出结果
+        const finalRow = Math.max(0, Math.min(this.boardSize - 1, row));
+        const finalCol = Math.max(0, Math.min(this.boardSize - 1, col));
         
-        // 取整并限制范围
-        const col = Math.max(0, Math.min(this.boardSize - 1, Math.floor(rawCol + 0.5))); // +0.5 进行四舍五入
-        const row = Math.max(0, Math.min(this.boardSize - 1, Math.floor(rawRow + 0.5)));
-        console.log(`🎯 最终网格坐标: (${row}, ${col})`);
+        console.log(`🎯 坐标转换: UI(${uiPos.x}, ${uiPos.y}) → Grid(${finalRow}, ${finalCol})`);
         
-        // 简单验证：计算该网格位置的本地坐标进行对比
-        const verifyLocalPos = this.gridToLocal(row, col);
-        console.log(`✅ 验证：网格(${row}, ${col}) 对应本地坐标 (${verifyLocalPos.x.toFixed(1)}, ${verifyLocalPos.y.toFixed(1)})`);
-        
-        // 计算本地坐标误差
-        const errorX = Math.abs(localPos.x - verifyLocalPos.x);
-        const errorY = Math.abs(localPos.y - verifyLocalPos.y);
-        console.log(`📏 本地坐标误差: X=${errorX.toFixed(1)}, Y=${errorY.toFixed(1)}`);
-        
-        if (errorX > this.blockSize / 2 || errorY > this.blockSize / 2) {
-            console.warn(`⚠️ 坐标转换误差较大，但仍在可接受范围内`);
-        }
-        
-        console.log(`🔄 ===== 坐标转换结束 =====\n`);
-        
-        return { row, col };
+        return { row: finalRow, col: finalCol };
     }
     
     /**
